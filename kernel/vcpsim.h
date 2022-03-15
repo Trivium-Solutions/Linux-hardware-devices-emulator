@@ -28,5 +28,9 @@ enum VS_IFACE {
 };
 #undef DEFINE_IFACE
 
+const char * iface_to_str(enum VS_IFACE iface);
+int str_to_iface(const char * str, enum VS_IFACE * iface);
+void new_device_name(enum VS_IFACE iface, char * buf, size_t size);
+
 #endif /* VCPSIM_H_INCLUDED */
 
