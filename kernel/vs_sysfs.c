@@ -71,7 +71,7 @@ static void dev_release(struct kobject *kobj)
 
 	kfree(dev);
 
-	pr_debug("device released\n");
+	pr_debug("%s: device released\n", kobj->name);
 }
 
 static ssize_t dev_show(struct dev_struct * dev, struct dev_attribute * attr,
@@ -87,6 +87,12 @@ static ssize_t dev_store(struct dev_struct * dev, struct dev_attribute * attr,
 	return count;
 }
 
+/* XXX temporary stubs */
+#define	dev_count_show		dev_show
+#define	dev_pairs_show		dev_show
+#define	dev_pairs_store		dev_store
+#define	dev_delete_store	dev_store
+#define	dev_clear_store		dev_store
 
 /* All attributes (files in a sysfs directory) for the device.
  * If you want to add/remove an attribute, you should start here. */
@@ -102,15 +108,15 @@ static ssize_t dev_store(struct dev_struct * dev, struct dev_attribute * attr,
 
 #define DEF_ATTR_RO(__name) \
 static struct dev_attribute __name##_attr = \
-	__ATTR(__name, PERMS_RO, dev_show, NULL)
+	__ATTR(__name, PERMS_RO, dev_##__name##_show, NULL)
 
 #define DEF_ATTR_WO(__name) \
 static struct dev_attribute __name##_attr = \
-	__ATTR(__name, PERMS_WO, NULL, dev_store)
+	__ATTR(__name, PERMS_WO, NULL, dev_##__name##_store)
 
 #define DEF_ATTR_RW(__name) \
 static struct dev_attribute __name##_attr = \
-	__ATTR(__name, PERMS_RW, dev_show, dev_store)
+	__ATTR(__name, PERMS_RW, dev_##__name##_show, dev_##__name##_store)
 
 #define DEF_ATTR(__name, __perm)	DEF_ATTR_##__perm(__name);
 FOREACH_DEV_ATTR(DEF_ATTR)
@@ -169,40 +175,43 @@ static ssize_t sysfs_add_dev(struct kobject * kobj,
 			      const char * buf, size_t count)
 {
 	int ret = -EIO;
+	enum VS_IFACE iface;
+	struct dev_struct * dev;
 
-	if (count > 0) {
-		enum VS_IFACE iface;
-
-		if (!str_to_iface(kobj->name, &iface))
-			pr_err("unsupported interface: %s", kobj->name);
-		else {
-			struct dev_struct * dev = new_dev(iface);
-
-			if (!dev)
-				pr_err("couldn't create new device: %s", kobj->name);
-			else {
-				ret = count;
-				pr_debug("%s: new device created\n", dev->kobj.name);
-			}
-		}
+	if (count == 0) 
+		pr_debug("empty write data\n");
+	else
+	if (!str_to_iface(kobj->name, &iface))
+		pr_err("unsupported interface: %s\n", kobj->name);
+	else
+	if (!(dev = new_dev(iface)))
+		pr_err("couldn't create new device: %s\n", kobj->name);
+	else {
+		ret = count;
+		pr_debug("%s: new device created\n", dev->kobj.name);
 	}
 
 	return ret;
 }
 
-static int copy_word(const char * src, size_t src_len, char * dst, size_t dst_len)
+static inline int copy_word(const char * src, size_t src_len, char * dst, size_t dst_len)
 {
 	char * s;
 
+	/* skip leading spaces */
 	for (; src_len && isspace((unsigned char)*src); src_len--, src++)
 		;
 
 	if (!src_len || dst_len < 1)
 		return 0;
 
-	for (s = dst; src_len && dst_len > 1 && *src && !isspace((unsigned char)*src); src_len--, dst_len--)
+	/* copy non-blank printable characters, observing the boundaries */
+	for (s = dst;
+	     src_len && dst_len > 1 && *src && !isspace((unsigned char)*src) && isprint((unsigned char)*src);
+	     src_len--, dst_len--)
 		*s++ = *src++;
 
+	/* ensure the terminating null */
 	*s = 0;
 
 	return s - dst;
@@ -213,35 +222,31 @@ static ssize_t sysfs_uninstall_dev(struct kobject * kobj,
 			      const char * buf, size_t count)
 {
 	int ret = -EIO;
+	enum VS_IFACE iface;
+	char dev_name[16];
+	struct kobject * ko;
 
-	if (count > 0) {
-		enum VS_IFACE iface;
+	if (count == 0)
+		pr_debug("empty write data\n");
+	else
+	if (!str_to_iface(kobj->name, &iface)) 
+		pr_err("unsupported interface: %s\n", kobj->name);
+	else
+	if (!copy_word(buf, count, dev_name, sizeof(dev_name)))
+		pr_err("malformed device identifier written to %s/%s\n", kobj->name, attr->attr.name);
+	else
+	if (!(ko = kset_find_obj(ifaces[iface].kset, dev_name)))
+		pr_err("%s: device not found\n", dev_name);
+	else {
+		pr_debug("%s: uninstalling device\n", ko->name);
 
-		if (str_to_iface(kobj->name, &iface)) {
-			char dev_name[16];
+		/* XXX release the reference taken by kset_find_obj(). */
+		kobject_put(ko);
 
-			if (!copy_word(buf, count, dev_name, sizeof(dev_name)))
-				pr_err("malformed device identifier written to %s/%s", kobj->name, attr->attr.name);
-			else {
-				struct kobject * kobj = kset_find_obj(ifaces[iface].kset, dev_name);
+		/* do the job */
+		kobject_put(ko);
 
-				if (kobj) {
-					pr_debug("%s: uninstalling device", kobj->name);
-
-					/* XXX release the reference taken by kset_find_obj(). */
-					kobject_put(kobj);
-
-					/* do the job */
-					kobject_put(kobj);
-
-					ret = count;
-				}
-				else
-					pr_debug("%s: device NOT found!", dev_name);
-			}
-		}
-		else
-			pr_err("unsupported interface: %s", kobj->name);
+		ret = count;
 	}
 
 	return ret;
@@ -254,6 +259,7 @@ static int init_iface(enum VS_IFACE iface)
 	int err;
 	struct kset * kset;
 
+	/* create the interface directory */
 	kset = kset_create_and_add(iface_to_str(iface), NULL, &base_kset->kobj);
 
 	if (!kset)
@@ -261,6 +267,7 @@ static int init_iface(enum VS_IFACE iface)
 
 	ifc->kset = kset;
 
+	/* create the add file */
 	ifc->add.attr.name = "add";
 	ifc->add.attr.mode = 0200;
 	ifc->add.store = sysfs_add_dev;
@@ -272,6 +279,7 @@ static int init_iface(enum VS_IFACE iface)
 		return err;
 	}
 
+	/* create the uninstall file */
 	ifc->uninstall.attr.name = "uninstall";
 	ifc->uninstall.attr.mode = 0200;
 	ifc->uninstall.store = sysfs_uninstall_dev;
@@ -291,6 +299,7 @@ static void cleanup_iface(enum VS_IFACE iface)
 {
 	struct iface_struct * ifc = &ifaces[iface];
 
+	sysfs_remove_file(&ifc->kset->kobj, &ifc->uninstall.attr);
 	sysfs_remove_file(&ifc->kset->kobj, &ifc->add.attr);
 	kset_unregister(ifc->kset);
 }

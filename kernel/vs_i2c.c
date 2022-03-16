@@ -11,7 +11,7 @@ int vs_init_i2c(void)
 {
 	int err = 0;
 
-	pr_info("i2c driver loaded");
+	pr_info("i2c driver loaded\n");
 
 	return err;
 }
@@ -19,7 +19,7 @@ int vs_init_i2c(void)
 void vs_cleanup_i2c(void)
 {
 
-	pr_info("i2c driver unloaded");
+	pr_info("i2c driver unloaded\n");
 }
 
 

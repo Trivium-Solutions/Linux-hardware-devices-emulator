@@ -16,7 +16,7 @@ int vs_init_tty(void)
 {
 	int err = 0;
 
-	pr_info("tty driver loaded");
+	pr_info("tty driver loaded\n");
 
 	return err;
 }
@@ -25,7 +25,7 @@ int vs_init_tty(void)
 void vs_cleanup_tty(void)
 {
 
-	pr_info("tty driver unloaded");
+	pr_info("tty driver unloaded\n");
 }
 
 

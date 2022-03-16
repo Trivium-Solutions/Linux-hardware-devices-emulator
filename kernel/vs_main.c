@@ -52,7 +52,7 @@ static int __init vcpsim_init(void)
 		if (!!(err = init_funcs[i]()))
 			goto err_init_funcs;
 
-	pr_info("loaded");
+	pr_info("loaded\n");
 	return 0;
 
 err_init_funcs:
@@ -69,7 +69,7 @@ static void __exit vcpsim_exit(void) {
 	for (i = ARRAY_SIZE(cleanup_funcs) - 1; i >= 0; i--)
 		cleanup_funcs[i]();
 
-	pr_info("unloaded");
+	pr_info("unloaded\n");
 }
 
 module_init(vcpsim_init);
