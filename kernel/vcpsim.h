@@ -28,9 +28,21 @@ enum VS_IFACE {
 };
 #undef DEFINE_IFACE
 
+#define	VS_MAX_REQUEST	128
+#define	VS_MAX_RESPONSE	128
+
+struct vs_pair {
+	char req[VS_MAX_REQUEST];
+	size_t req_size;
+	char resp[VS_MAX_RESPONSE];
+	size_t resp_size;
+};
+
 const char * iface_to_str(enum VS_IFACE iface);
 int str_to_iface(const char * str, enum VS_IFACE * iface);
 void new_device_name(enum VS_IFACE iface, char * buf, size_t size);
+const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair);
+const char * pair_to_str(struct vs_pair * pair);
 
 #endif /* VCPSIM_H_INCLUDED */
 

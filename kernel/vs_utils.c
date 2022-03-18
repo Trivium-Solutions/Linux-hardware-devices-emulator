@@ -3,13 +3,10 @@
 #	include <linux/string.h>
 #	include <linux/ctype.h>
 #else
-#	include <stdio.h>
-#	include <string.h>
-#	include <ctype.h>
+#	include <kernel_utils.h>
 #endif
 
 #include "vcpsim.h"
-
 
 /*! Returns a string with the name of iface. */
 const char * iface_to_str(enum VS_IFACE iface)
@@ -54,5 +51,90 @@ void new_device_name(enum VS_IFACE iface, char * buf, size_t size)
 	}
 
 	snprintf(buf, size, "%s%d", iface_to_str(iface), (*n)++);
+}
+
+/*! Key-value string parser
+ */
+const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair)
+{
+	const char * s = str;
+	char * e;
+	int sz;
+
+	if (!str_size)
+		return "empty string";
+
+	e = strnchr(s, str_size, '=');
+
+	if (!e)
+		return "missing '='";
+
+	sz = e - s;
+
+	if (!sz)
+		return "empty request";
+
+	if (sz > VS_MAX_REQUEST * 2)
+		return "request string too long";
+
+	if (sz & 1)
+		return "odd number of characters in request string";
+
+	if (hex2bin(pair->req, s, sz / 2))
+		return "invalid character in request string";
+
+	pair->req_size = sz / 2;
+
+	sz++; e++; /* '=' */
+
+	sz = str_size - sz;
+	s = e;
+
+	/* may have a terminating newline character */
+	e = strnchr(s, sz, '\n');
+
+	if (e)
+		sz = e - s;
+
+	if (!sz)
+		return "empty response";
+
+	if (sz > VS_MAX_RESPONSE * 2)
+		return "response string too long";
+
+	if (sz & 1)
+		return "odd number of characters in response string";
+
+	if (hex2bin(pair->resp, s, sz / 2))
+		return "invalid character in response string";
+
+	pair->resp_size = sz / 2;
+
+	return NULL;
+}
+
+/*! Key-value string maker
+ */
+const char * pair_to_str(struct vs_pair * pair)
+{
+	/* each hex digit takes 2 chars + '=' + terminating null */
+	static char buf[VS_MAX_REQUEST * 2 + VS_MAX_RESPONSE * 2 + 1 + 1];
+	char * p = buf;
+
+	if (pair->req_size < 1 || pair->req_size > VS_MAX_REQUEST)
+		return "error: request size out of valid range";
+
+	if (pair->resp_size < 1 || pair->resp_size > VS_MAX_RESPONSE)
+		return "error: response size out of valid range";
+
+	p = bin2hex(p, pair->req, pair->req_size);
+
+	*p++ = '=';
+
+	p = bin2hex(p, pair->resp, pair->resp_size);
+
+	*p = 0;
+
+	return buf;
 }
 
