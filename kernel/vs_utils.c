@@ -1,5 +1,6 @@
 #ifdef __KERNEL__
 #	include <linux/kernel.h>
+#	include <linux/list.h>
 #	include <linux/string.h>
 #	include <linux/ctype.h>
 #else
@@ -138,3 +139,29 @@ const char * pair_to_str(struct vs_pair * pair)
 	return buf;
 }
 
+struct vs_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size)
+{
+	struct vs_pair * ret;
+
+	list_for_each_entry (ret, list, entry) {
+		if (ret->req_size == req_size &&
+		    memcmp(ret->req, request, req_size) == 0)
+			return ret;
+	}
+
+	return NULL;
+}
+
+struct vs_pair * get_pair_at_index(struct list_head * list, size_t index)
+{
+	size_t count = 0;
+	struct vs_pair * ret;
+
+	list_for_each_entry (ret, list, entry) {
+		if (index == count)
+			return ret;
+		count++;
+	}
+
+	return NULL;
+}

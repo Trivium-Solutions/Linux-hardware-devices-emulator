@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "kernel_utils.h"
+
 #include <vcpsim.h>
 
 #define streq(s1, s2) (strcmp((s1), (s2)) == 0)

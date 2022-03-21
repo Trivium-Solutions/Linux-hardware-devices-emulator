@@ -10,6 +10,9 @@
 #include <stddef.h>
 #include <string.h>
 
+/* Kernel list implementation for userspace. */
+#include "list.h"
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;

@@ -28,21 +28,43 @@ enum VS_IFACE {
 };
 #undef DEFINE_IFACE
 
-#define	VS_MAX_REQUEST	128
-#define	VS_MAX_RESPONSE	128
+/*! Maximum length of a request */
+#define	VS_MAX_REQUEST	64
 
+/*! Maximum length of a response */
+#define	VS_MAX_RESPONSE	64
+
+/*! Maximum number of key-value pairs that can be added to a device */
+#define	VS_MAX_PAIRS	32
+
+/*! Request-response pair */
 struct vs_pair {
-	char req[VS_MAX_REQUEST];
+	struct list_head entry;
+	unsigned char req[VS_MAX_REQUEST];
 	size_t req_size;
-	char resp[VS_MAX_RESPONSE];
+	unsigned char resp[VS_MAX_RESPONSE];
 	size_t resp_size;
 };
+
+/*! Returns the number of entries in a list */
+static inline size_t list_entry_count(struct list_head * list)
+{
+	size_t ret = 0;
+	struct list_head * p;
+
+	list_for_each (p, list)
+		ret++;
+
+	return ret;
+}
 
 const char * iface_to_str(enum VS_IFACE iface);
 int str_to_iface(const char * str, enum VS_IFACE * iface);
 void new_device_name(enum VS_IFACE iface, char * buf, size_t size);
 const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair);
 const char * pair_to_str(struct vs_pair * pair);
+struct vs_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size);
+struct vs_pair * get_pair_at_index(struct list_head * list, size_t index);
 
 #endif /* VCPSIM_H_INCLUDED */
 

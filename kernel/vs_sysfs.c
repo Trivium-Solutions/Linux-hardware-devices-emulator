@@ -18,8 +18,10 @@ struct iface_struct {
 
 struct iface_attribute {
 	struct attribute attr;
-	ssize_t (*show)(struct iface_struct * iface, struct iface_attribute * attr, char * buf);
-	ssize_t (*store)(struct iface_struct * iface, struct iface_attribute * attr, const char * buf, size_t count);
+	ssize_t (*show)(struct iface_struct * iface,
+		struct iface_attribute * attr, char * buf);
+	ssize_t (*store)(struct iface_struct * iface,
+		struct iface_attribute * attr, const char * buf, size_t count);
 };
 
 #define to_iface_attr(p) container_of(p, struct iface_attribute, attr)
@@ -27,15 +29,18 @@ struct iface_attribute {
 struct dev_struct {
 	struct kobject kobj;
 	struct iface_struct * iface;
-	struct list_head list;
+	struct list_head entry;
+	struct list_head pair_list;
 };
 
 #define to_dev(p) container_of(p, struct dev_struct, kobj)
 
 struct dev_attribute {
 	struct attribute attr;
-	ssize_t (*show)(struct dev_struct * dev, struct dev_attribute * attr, char * buf);
-	ssize_t (*store)(struct dev_struct * dev, struct dev_attribute * attr, const char * buf, size_t count);
+	ssize_t (*show)(struct dev_struct * dev,
+		struct dev_attribute * attr, char * buf);
+	ssize_t (*store)(struct dev_struct * dev,
+		struct dev_attribute * attr, const char * buf, size_t count);
 };
 
 #define to_dev_attr(p) container_of(p, struct dev_attribute, attr)
@@ -54,7 +59,8 @@ static ssize_t iface_attr_show(struct kobject * kobj, struct attribute * attr, c
 	return -EIO;
 }
 
-static ssize_t iface_attr_store(struct kobject * kobj, struct attribute * attr, const char * buf, size_t len)
+static ssize_t iface_attr_store(struct kobject * kobj,
+	struct attribute * attr, const char * buf, size_t len)
 {
 	struct iface_struct * ifc = to_iface(kobj);
 	struct iface_attribute * a = to_iface_attr(attr);
@@ -73,14 +79,14 @@ static const struct sysfs_ops iface_sysfs_ops = {
 /*
 // Stubs for the interface attributes.
 
-static ssize_t iface_show(struct iface_struct * iface, struct iface_attribute * attr,
-			char * buf)
+static ssize_t iface_show(struct iface_struct * iface,
+	struct iface_attribute * attr, char * buf)
 {
-	return sprintf(buf, "%s/%s\n", iface->kobj.name, attr->attr.name);
+	return sprintf(buf, "%s/%s\n", kobject_name(&iface->kobj), attr->attr.name);
 }
 
-static ssize_t iface_store(struct iface_struct * iface, struct iface_attribute * attr,
-			 const char * buf, size_t count)
+static ssize_t iface_store(struct iface_struct * iface,
+	struct iface_attribute * attr, const char * buf, size_t count)
 {
 	return count;
 }
@@ -111,9 +117,15 @@ static struct dev_struct * new_dev(enum VS_IFACE iface) {
 		return NULL;
 	}
 
+	/* XXX At the moment, there is no upper limit on the number of
+	 * devices being created. Limiting will be implemented in
+	 * device-specific initializations. */
+
 	// TODO device-specific initialization
 
-	list_add(&ret->list, &ifc->dev_list);
+	INIT_LIST_HEAD(&ret->pair_list);
+
+	list_add(&ret->entry, &ifc->dev_list);
 
 	kobject_uevent(&ret->kobj, KOBJ_ADD);
 
@@ -121,24 +133,31 @@ static struct dev_struct * new_dev(enum VS_IFACE iface) {
 }
 
 
-static ssize_t iface_add_store(struct iface_struct * iface, struct iface_attribute * attr, const char * buf, size_t count)
+static ssize_t iface_add_store(struct iface_struct * iface,
+	struct iface_attribute * attr, const char * buf, size_t count)
 {
 	int ret = -EIO;
+	const char * iface_name = kobject_name(&iface->kobj);
+	const char * filename = attr->attr.name;
 	enum VS_IFACE ifc;
 	struct dev_struct * dev;
-	const char * iface_name = kobject_name(&iface->kobj);
 
 	if (count == 0)
-		pr_debug("empty write data\n");
+		pr_err("%s/%s: empty write data\n",
+			iface_name, filename);
 	else
 	if (!str_to_iface(iface_name, &ifc))
-		pr_err("unsupported interface: %s\n", iface_name);
+		pr_err("%s/%s: unsupported interface: %s\n",
+			iface_name, filename, iface_name);
 	else
 	if (!(dev = new_dev(ifc)))
-		pr_err("couldn't create new device: %s\n", iface_name);
+		pr_err("%s/%s: couldn't create new device with interface %s\n",
+			iface_name, filename, iface_name);
 	else {
 		ret = count;
-		pr_debug("%s: new device created\n", kobject_name(&dev->kobj));
+
+		pr_debug("%s/%s: %s: new device created\n",
+			iface_name, filename, kobject_name(&dev->kobj));
 	}
 
 	return ret;
@@ -157,7 +176,9 @@ static inline int copy_word(const char * src, size_t src_len, char * dst, size_t
 
 	/* copy non-blank printable characters, observing the boundaries */
 	for (s = dst;
-	     src_len && dst_len > 1 && *src && !isspace((unsigned char)*src) && isprint((unsigned char)*src);
+	     src_len && dst_len > 1 &&
+	     *src && !isspace((unsigned char)*src) &&
+	     isprint((unsigned char)*src);
 	     src_len--, dst_len--)
 		*s++ = *src++;
 
@@ -171,34 +192,41 @@ static struct dev_struct * find_device(struct iface_struct * iface, const char *
 {
 	struct dev_struct * dev;
 
-	list_for_each_entry (dev, &iface->dev_list, list)
+	list_for_each_entry (dev, &iface->dev_list, entry)
 		if (strcmp(kobject_name(&dev->kobj), name) == 0)
 			return dev;
 
 	return NULL;
 }
 
-static ssize_t iface_uninstall_store(struct iface_struct * iface, struct iface_attribute * attr, const char * buf, size_t count)
+static ssize_t iface_uninstall_store(struct iface_struct * iface,
+	struct iface_attribute * attr, const char * buf, size_t count)
 {
-	int ret = -EIO;
+	int ret = -EINVAL;
 	const char * iface_name = kobject_name(&iface->kobj);
+	const char * filename = attr->attr.name;
 	enum VS_IFACE ifc;
 	char dev_name[16];
 	struct dev_struct * dev;
 
 	if (count == 0)
-		pr_debug("empty write data\n");
+		pr_err("%s/%s: empty write data\n",
+			iface_name, filename);
 	else
 	if (!str_to_iface(iface_name, &ifc))
-		pr_err("unsupported interface: %s\n", iface_name);
+		pr_err("%s/%s: %s: unsupported interface\n",
+			iface_name, filename, iface_name);
 	else
 	if (!copy_word(buf, count, dev_name, sizeof(dev_name)))
-		pr_err("malformed device identifier written to %s/%s\n", iface_name, attr->attr.name);
+		pr_err("%s/%s: malformed device identifier\n",
+			iface_name, filename);
 	else
 	if (!(dev = find_device(&ifaces[ifc], dev_name)))
-		pr_err("%s: device not found\n", dev_name);
+		pr_err("%s/%s: %s: device not found\n",
+			iface_name, filename, dev_name);
 	else {
-		pr_debug("%s: uninstalling device\n", kobject_name(&dev->kobj));
+		pr_debug("%s/%s: %s: uninstalling device\n",
+			iface_name, filename, kobject_name(&dev->kobj));
 
 		kobject_put(&dev->kobj);
 
@@ -251,7 +279,8 @@ static struct kobj_type iface_ktype = {
 };
 
 
-static ssize_t dev_attr_show(struct kobject * kobj, struct attribute * attr, char *buf)
+static ssize_t dev_attr_show(struct kobject * kobj,
+	struct attribute * attr, char *buf)
 {
 	struct dev_struct * d = to_dev(kobj);
 	struct dev_attribute * a = to_dev_attr(attr);
@@ -262,7 +291,8 @@ static ssize_t dev_attr_show(struct kobject * kobj, struct attribute * attr, cha
 	return -EIO;
 }
 
-static ssize_t dev_attr_store(struct kobject * kobj, struct attribute * attr, const char * buf, size_t len)
+static ssize_t dev_attr_store(struct kobject * kobj,
+	struct attribute * attr, const char * buf, size_t len)
 {
 	struct dev_struct * d = to_dev(kobj);
 	struct dev_attribute * a = to_dev_attr(attr);
@@ -278,38 +308,149 @@ static const struct sysfs_ops dev_sysfs_ops = {
 	.store = dev_attr_store,
 };
 
+static void pair_delete(struct vs_pair * pair)
+{
+	list_del(&pair->entry);
+	kfree(pair);
+}
+
+static void clear_pairs(struct dev_struct * dev)
+{
+	struct list_head * e;
+	struct list_head * tmp;
+
+	list_for_each_safe(e, tmp, &dev->pair_list)
+		pair_delete(list_entry(e, struct vs_pair, entry));
+}
+
 static void dev_release(struct kobject *kobj)
 {
 	struct dev_struct * dev = to_dev(kobj);
 
 	// TODO device-specific deinitialization
 
-	list_del(&dev->list);
+	clear_pairs(dev);
+
+	list_del(&dev->entry);
 
 	kfree(dev);
 
 	pr_debug("%s: device released\n", kobject_name(kobj));
 }
 
-static ssize_t dev_show(struct dev_struct * dev, struct dev_attribute * attr, char * buf)
+/*
+// Stubs for the device attributes.
+
+static ssize_t dev_show(struct dev_struct * dev,
+	struct dev_attribute * attr, char * buf)
 {
 	return sprintf(buf, "%s/%s\n", kobject_name(&dev->kobj), attr->attr.name);
 }
 
-static ssize_t dev_store(struct dev_struct * dev, struct dev_attribute * attr, const char * buf, size_t count)
+
+static ssize_t dev_store(struct dev_struct * dev,
+	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	return count;
 }
+*/
 
-/* XXX temporary stubs */
-#define	dev_count_show		dev_show
-#define	dev_pairs_show		dev_show
-#define	dev_pairs_store		dev_store
-#define	dev_delete_store	dev_store
-#define	dev_clear_store		dev_store
+static ssize_t dev_count_show(struct dev_struct * dev,
+	struct dev_attribute * attr, char * buf)
+{
+	return sprintf(buf, "%zd", list_entry_count(&dev->pair_list));
+}
+
+static ssize_t dev_pairs_show(struct dev_struct * dev,
+	struct dev_attribute * attr, char * buf)
+{
+	ssize_t size = 0;
+	int count = 0;
+	struct vs_pair * pair;
+
+	list_for_each_entry (pair, &dev->pair_list, entry)
+		size += sprintf(buf + size, "%d\t%s\n", count++, pair_to_str(pair));
+
+	return size;
+}
+
+static ssize_t dev_pairs_store(struct dev_struct * dev,
+	struct dev_attribute * attr, const char * buf, size_t count)
+{
+	ssize_t ret = -EINVAL;
+	const char * dev_name = kobject_name(&dev->kobj);
+	const char * filename = attr->attr.name;
+	const char * err;
+	struct vs_pair pair;
+	struct vs_pair * new_pair;
+
+	err = str_to_pair(buf, count, &pair);
+
+	if (err)
+		pr_err("%s/%s: invalid request-response string: %s\n",
+			dev_name, filename, err);
+	else
+	if (list_entry_count(&dev->pair_list) >= VS_MAX_PAIRS)
+		pr_err("%s/%s: too many request-response pairs\n",
+			dev_name, filename);
+	else
+	if (find_pair(&dev->pair_list, pair.req, pair.req_size))
+		pr_err("%s/%s: duplicate request-response pair\n",
+			dev_name, filename);
+	else
+	if (!(new_pair = kmalloc(sizeof(pair), GFP_KERNEL)))
+		pr_err("%s/%s: out of memory!\n",
+			dev_name, filename);
+	else {
+		memcpy(new_pair, &pair, sizeof(pair));
+		list_add_tail(&new_pair->entry, &dev->pair_list);
+		ret = count;
+	}
+
+	return ret;
+}
+
+static ssize_t dev_delete_store(struct dev_struct * dev,
+	struct dev_attribute * attr, const char * buf, size_t count)
+{
+	ssize_t ret = -EINVAL;
+	const char * dev_name = kobject_name(&dev->kobj);
+	const char * filename = attr->attr.name;
+	struct vs_pair * pair;
+	unsigned index;
+
+	if (!count)
+		pr_err("%s/%s: empty write data\n",
+			dev_name, filename);
+	else
+	if (kstrtouint(buf, 0, &index))
+		pr_err("%s/%s: invalid index value\n",
+			dev_name, filename);
+	else
+	if (!(pair = get_pair_at_index(&dev->pair_list, index)))
+		pr_err("%s/%s: no request-response pair at index %u\n",
+			dev_name, filename, index);
+	else {
+		pair_delete(pair);
+		ret = count;
+	}
+
+	return ret;
+}
+
+static ssize_t dev_clear_store(struct dev_struct * dev,
+	struct dev_attribute * attr, const char * buf, size_t count)
+{
+	if (!count)
+		return -EIO;
+
+	clear_pairs(dev);
+
+	return count;
+}
 
 /* All attributes (files in a sysfs directory) for the device.
- * If you want to add/remove an attribute, you should start here. */
+ * If you want to add/remove a device attribute, you should start here. */
 #define FOREACH_DEV_ATTR(A)\
 	A(count, RO)	\
 	A(pairs, RW)	\
@@ -343,7 +484,8 @@ static int init_iface(enum VS_IFACE iface)
 
 	INIT_LIST_HEAD(&ifc->dev_list);
 
-	err = kobject_init_and_add(&ifc->kobj, &iface_ktype, &base_kset->kobj, iface_to_str(iface));
+	err = kobject_init_and_add(&ifc->kobj, &iface_ktype,
+		&base_kset->kobj, iface_to_str(iface));
 
 	return err;
 }
@@ -354,7 +496,8 @@ static void cleanup_iface(enum VS_IFACE iface)
 	struct list_head * dl = &ifc->dev_list;
 
 	while (!list_empty(dl)) {
-		struct dev_struct * dev = list_first_entry(dl, struct dev_struct, list);
+		struct dev_struct * dev =
+			list_first_entry(dl, struct dev_struct, entry);
 
 		kobject_put(&dev->kobj);
 	}
