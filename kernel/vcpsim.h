@@ -28,14 +28,23 @@ enum VS_IFACE {
 };
 #undef DEFINE_IFACE
 
-/*! Maximum length of a request */
+/*! Maximum length of a request
+ * \warning If you change this value, you must recalculate VS_MAX_PAIRS. */
 #define	VS_MAX_REQUEST	64
+//#define	VS_MAX_REQUEST	8
 
-/*! Maximum length of a response */
+/*! Maximum length of a response
+ * \warning If you change this value, you must recalculate VS_MAX_PAIRS. */
 #define	VS_MAX_RESPONSE	64
+//#define	VS_MAX_RESPONSE	8
 
-/*! Maximum number of key-value pairs that can be added to a device */
-#define	VS_MAX_PAIRS	32
+/*! Maximum number of key-value pairs that can be added to a device
+ * \warning This value depends on VS_MAX_REQUEST and VS_MAX_RESPONSE. If you
+ * change either of them, you must also recalculate VS_MAX_PAIRS!
+ * This value ensures that all the pairs can fit in a sysfs file, which
+ * cannot exceed PAGE_SIZE in length. */
+#define	VS_MAX_PAIRS	15
+//#define	VS_MAX_PAIRS	110
 
 /*! Request-response pair */
 struct vs_pair {
