@@ -26,8 +26,8 @@ VS_FOREACH_IFACE(DECL_CLEANUP_FUNC)
 /*! Array of pointers to various initialization functions
    that must be called at load time. */
 static int (* const init_funcs[])(void) = {
-	vs_init_sysfs,
 	VS_FOREACH_IFACE(INIT_FUNC_PTR)
+	vs_init_sysfs,
 };
 
 /*! Array of pointers to various clean-up functions

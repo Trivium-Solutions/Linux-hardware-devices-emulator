@@ -46,6 +46,10 @@ enum VS_IFACE {
 #define	VS_MAX_PAIRS	15
 //#define	VS_MAX_PAIRS	110
 
+/*! Maximum number of devices per interface */
+#define	VS_MAX_DEVICES	8
+
+
 /*! Request-response pair */
 struct vs_pair {
 	struct list_head entry;
@@ -54,6 +58,8 @@ struct vs_pair {
 	unsigned char resp[VS_MAX_RESPONSE];
 	size_t resp_size;
 };
+
+struct vs_device;
 
 /*! Returns the number of entries in a list */
 static inline size_t list_entry_count(struct list_head * list)
@@ -69,7 +75,6 @@ static inline size_t list_entry_count(struct list_head * list)
 
 const char * iface_to_str(enum VS_IFACE iface);
 int str_to_iface(const char * str, enum VS_IFACE * iface);
-void new_device_name(enum VS_IFACE iface, char * buf, size_t size);
 const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair);
 const char * pair_to_str(struct vs_pair * pair);
 struct vs_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size);

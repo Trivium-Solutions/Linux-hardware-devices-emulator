@@ -12,6 +12,22 @@
 
 #include "vcpsim.h"
 
+struct vs_device * vs_create_tty_device(long index)
+{
+	struct vs_device * vsdev = (struct vs_device *)(index + 1); /* XXX */
+
+	pr_debug("%s%ld: dummy device created\n",
+		iface_to_str(VS_TTY), index);
+
+	return vsdev;
+}
+
+void vs_destroy_tty_device(struct vs_device * device)
+{
+	pr_debug("%s%ld: dummy device destroyed\n",
+		iface_to_str(VS_TTY), (long)device - 1);
+}
+
 int vs_init_tty(void)
 {
 	int err = 0;

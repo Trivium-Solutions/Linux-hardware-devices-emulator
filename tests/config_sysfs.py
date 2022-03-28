@@ -59,37 +59,14 @@ def rand_pair_str_list():
 
 # ----------------------------------------------------------------------
 
-def rand_dev_list(pfx, start):
-    ret = { '%s%d' % (pfx, start + i) : rand_pair_str_list() for i in \
+def rand_dev_list(pfx):
+    return { '%s%d' % (pfx, i) : rand_pair_str_list() for i in \
         rand_range(1, _VS_MAX_DEVICES) }
-    # _total_created = total number of devices created.
-    ret['_total_created'] = len(ret) + start
-    return ret
 
 # ----------------------------------------------------------------------
 
-def rand_config(templ = None):
-    ret = {}
-    for ifc in _IFACES:
-        start = 0
-        if templ is not None and '_total_created' in templ[ifc]:
-            start = templ[ifc]['_total_created']
-        ret[ifc] = rand_dev_list(ifc, start)
-    return ret
-    # without the _total_created
-    #return { ifc: rand_dev_list(ifc, start) for ifc in _IFACES }
-
-# ----------------------------------------------------------------------
-
-def clear_config(config):
-    # Leave the iface keys, remove everything else that doesn't start
-    # with an underscore
-    config = { \
-        iface_name: { \
-            dev: config[iface_name][dev] for dev in config[iface_name] \
-                if dev.startswith('_') \
-        } for iface_name in config.keys() \
-    }
+def rand_config():
+    return { ifc: rand_dev_list(ifc) for ifc in _IFACES }
 
 # ----------------------------------------------------------------------
 
@@ -302,12 +279,10 @@ def test_randem_config_write():
 
     random.seed()
 
-    cfg1 = None
-
     for i in range(50):
         print('--- Test %d --------------------' % (i + 1))
         print('Creating random config...')
-        cfg1 = rand_config(cfg1)
+        cfg1 = rand_config()
         print('Writing config...')
 
         if not write_config(cfg1):
@@ -328,7 +303,6 @@ def test_randem_config_write():
             print(s1)
             print('--------------------------------')
             print(s2)
-        clear_config(cfg1)
 
     ok, err = run(['rmmod', _MODULE_NAME])
     if not ok:

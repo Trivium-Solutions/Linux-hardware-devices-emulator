@@ -6,6 +6,7 @@
 #include <linux/printk.h>
 #include <linux/ctype.h>
 #include <linux/version.h>
+#include <linux/bitmap.h>
 
 #include "vcpsim.h"
 
@@ -28,9 +29,11 @@ struct iface_attribute {
 
 struct dev_struct {
 	struct kobject kobj;
-	struct iface_struct * iface;
 	struct list_head entry;
 	struct list_head pair_list;
+	enum VS_IFACE iface;
+	long index;
+	struct vs_device * device;
 };
 
 #define to_dev(p) container_of(p, struct dev_struct, kobj)
@@ -44,6 +47,32 @@ struct dev_attribute {
 };
 
 #define to_dev_attr(p) container_of(p, struct dev_attribute, attr)
+
+struct vs_dev_ops {
+	struct vs_device * (*create)(long index);
+	void (*destroy)(struct vs_device * device);
+};
+
+/* Prototypes for our internal device operations. */
+#define DECL_DEVOP(__upper, __lower) \
+	extern struct vs_device * vs_create_##__lower##_device(long index); \
+	extern void vs_destroy_##__lower##_device(struct vs_device * device); \
+
+VS_FOREACH_IFACE(DECL_DEVOP)
+
+#undef DECL_DEVOP
+
+/* Internal device operations. */
+#define DEVOP(__upper, __lower) { \
+	.create = vs_create_##__lower##_device, \
+	.destroy = vs_destroy_##__lower##_device, \
+},
+
+static const struct vs_dev_ops dev_ops[] = {
+	VS_FOREACH_IFACE(DEVOP)
+};
+
+#undef DEVOP
 
 static struct kset * base_kset;
 static struct iface_struct ifaces[VS_IFACE_COUNT];
@@ -92,46 +121,88 @@ static ssize_t iface_store(struct iface_struct * iface,
 }
 */
 
+/* Pools of indexes for devices. */
+static DECLARE_BITMAP(indexes[VS_IFACE_COUNT], VS_MAX_DEVICES);
+
+static inline long find_free_dev_index(enum VS_IFACE iface)
+{
+	long ret = find_first_zero_bit(indexes[iface], VS_MAX_DEVICES);
+
+	if (ret == VS_MAX_DEVICES)
+		ret = -1;
+
+	return ret;
+}
+
+static inline void take_dev_index(enum VS_IFACE iface, long index)
+{
+	if (index >= 0)
+		set_bit(index, indexes[iface]);
+}
+
+static inline void put_dev_index(enum VS_IFACE iface, long index)
+{
+	if (index >= 0)
+		clear_bit(index, indexes[iface]);
+}
+
+static struct dev_struct * add_dev(enum VS_IFACE iface,
+	struct vs_device * dev, long index)
+{
+	struct dev_struct * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
+
+	if (ret) {
+		ret->iface = iface;
+		ret->index = index;
+
+		take_dev_index(iface, index);
+
+		ret->device = dev;
+		INIT_LIST_HEAD(&ret->pair_list);
+		list_add(&ret->entry, &ifaces[iface].dev_list);
+	}
+
+	return ret;
+}
+
 /* forward declaration */
 static struct kobj_type dev_ktype;
 
 static struct dev_struct * new_dev(enum VS_IFACE iface) {
 	struct iface_struct * ifc = &ifaces[iface];
-	char name[16];
+	long idx = find_free_dev_index(iface);
+	struct dev_struct * ret = NULL;
 	int err;
-	struct dev_struct * ret;
+	struct vs_device * dev;
 
-	ret = kzalloc(sizeof(*ret), GFP_KERNEL);
+	/* format of directory name: <interface name> <index>, eg tty0 */
 
-	if (!ret)
-		return NULL;
-
-	new_device_name(iface, name, sizeof(name));
-
-	err = kobject_init_and_add(&ret->kobj, &dev_ktype, &ifc->kobj, name);
-
-	if (err) {
+	if (idx < 0)
+		pr_err("%s: device not created; too many devices",
+			iface_to_str(iface));
+	else
+	if (!(dev = dev_ops[iface].create(idx)))
+		/* do nothing; assume a log message was printed by create() */
+		;
+	else
+	if (!(ret = add_dev(iface, dev, idx)))
+		pr_err("%s%ld: device not created; out of memory!",
+			iface_to_str(iface), idx);
+	else
+	if (!!(err = kobject_init_and_add(&ret->kobj, &dev_ktype, &ifc->kobj,
+			"%s%ld", iface_to_str(iface), idx))) {
 		pr_err("kobject_init_and_add() failed\n");
 		kobject_put(&ret->kobj);
+		ret = NULL;
 		/* don't do kfree(ret) as dev_release will take care of that */
-		return NULL;
 	}
+	else {
 
-	/* XXX At the moment, there is no upper limit on the number of
-	 * devices being created. Limiting will be implemented in
-	 * device-specific initializations. */
-
-	// TODO device-specific initialization
-
-	INIT_LIST_HEAD(&ret->pair_list);
-
-	list_add(&ret->entry, &ifc->dev_list);
-
-	kobject_uevent(&ret->kobj, KOBJ_ADD);
+		kobject_uevent(&ret->kobj, KOBJ_ADD);
+	}
 
 	return ret;
 }
-
 
 static ssize_t iface_add_store(struct iface_struct * iface,
 	struct iface_attribute * attr, const char * buf, size_t count)
@@ -327,11 +398,15 @@ static void dev_release(struct kobject *kobj)
 {
 	struct dev_struct * dev = to_dev(kobj);
 
-	// TODO device-specific deinitialization
+	pr_debug("%s: releasing device\n", kobject_name(kobj));
+
+	dev_ops[dev->iface].destroy(dev->device);
 
 	clear_pairs(dev);
 
 	list_del(&dev->entry);
+
+	put_dev_index(dev->iface, dev->index);
 
 	kfree(dev);
 
