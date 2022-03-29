@@ -59,7 +59,11 @@ struct vs_pair {
 	size_t resp_size;
 };
 
-struct vs_device;
+/*! Generic device. */
+struct vs_dev;
+
+/*! Device implementation for particular interfaces. */
+struct vs_dev_priv;
 
 /*! Returns the number of entries in a list */
 static inline size_t list_entry_count(struct list_head * list)

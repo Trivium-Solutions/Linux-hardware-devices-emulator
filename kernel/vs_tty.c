@@ -14,7 +14,8 @@
 
 #define TTY_DRIVER_NAME "vcptty"
 
-struct vs_device {
+struct vs_dev_priv {
+	struct vs_dev * vsdev;
 	struct tty_struct * tty;
 	int index;
 	int open_count;
@@ -23,11 +24,11 @@ struct vs_device {
 };
 
 static struct tty_driver * driver;
-static struct vs_device * devices[VS_MAX_DEVICES];
+static struct vs_dev_priv * devices[VS_MAX_DEVICES];
 
 static int vcptty_open(struct tty_struct *tty, struct file *file)
 {
-	struct vs_device * dev;
+	struct vs_dev_priv * dev;
 
 	tty->driver_data = NULL;
 
@@ -48,7 +49,7 @@ static int vcptty_open(struct tty_struct *tty, struct file *file)
 	return 0;
 }
 
-static void close_dev(struct vs_device * dev)
+static void close_dev(struct vs_dev_priv * dev)
 {
 	mutex_lock(&dev->mutex);
 
@@ -67,13 +68,13 @@ quit:
 
 static void vcptty_close(struct tty_struct *tty, struct file *file)
 {
-	struct vs_device * dev = tty->driver_data;
+	struct vs_dev_priv * dev = tty->driver_data;
 
 	if (dev)
 		close_dev(dev);
 }
 
-static int write_to_input(struct vs_device * dev, const unsigned char * buff, int count)
+static int write_to_input(struct vs_dev_priv * dev, const unsigned char * buff, int count)
 {
 	int i;
 	struct tty_port * port;
@@ -95,7 +96,7 @@ static int write_to_input(struct vs_device * dev, const unsigned char * buff, in
 static int vcptty_write(struct tty_struct *tty,
 		      const unsigned char *buffer, int count)
 {
-	struct vs_device * dev = tty->driver_data;
+	struct vs_dev_priv * dev = tty->driver_data;
 	int i;
 	int ret = -EINVAL;
 
@@ -134,7 +135,7 @@ static int vcptty_write_room(struct tty_struct *tty)
 static unsigned int vcptty_write_room(struct tty_struct *tty)
 #endif
 {
-	struct vs_device * dev = tty->driver_data;
+	struct vs_dev_priv * dev = tty->driver_data;
 	int room = -EINVAL;
 
 	if (!dev)
@@ -160,48 +161,50 @@ static const struct tty_operations serial_ops = {
 	.write_room = vcptty_write_room,
 };
 
-struct vs_device * vs_create_tty_device(long index)
+struct vs_dev_priv * vs_create_tty_device(struct vs_dev * vsdev, long index)
 {
-	struct vs_device * vsdev = NULL;
+	struct vs_dev_priv * dev = NULL;
 
 	if (index < 0 || index >= VS_MAX_DEVICES)
 		/* can't happen? */
 		pr_err("%s%ld: device not created; index out of range!",
 			iface_to_str(VS_TTY), index);
 	else
-	if (!(vsdev = kmalloc(sizeof(*vsdev), GFP_KERNEL)))
+	if (!(dev = kmalloc(sizeof(*dev), GFP_KERNEL)))
 		pr_err("%s%ld: device not created; out of memory!",
 			iface_to_str(VS_TTY), index);
 	else {
-		struct device * dev;
+		struct device * d;
 
-		mutex_init(&vsdev->mutex);
+		dev->vsdev = vsdev;
 
-		vsdev->index = index;
-		vsdev->open_count = 0;
+		mutex_init(&dev->mutex);
 
-		devices[index] = vsdev;
+		dev->index = index;
+		dev->open_count = 0;
 
-		tty_port_init(&vsdev->port);
+		devices[index] = dev;
 
-		dev = tty_port_register_device(&vsdev->port, driver,
+		tty_port_init(&dev->port);
+
+		d = tty_port_register_device(&dev->port, driver,
 			index, NULL);
 
-		if (IS_ERR(dev)) {
-			tty_port_destroy(&vsdev->port);
-			kfree(vsdev);
-			devices[index] = vsdev = NULL;
+		if (IS_ERR(d)) {
+			tty_port_destroy(&dev->port);
+			kfree(dev);
+			devices[index] = dev = NULL;
 			pr_err("%s%ld: device not created; "
 				"tty_port_register_device() error code "
 				"%ld\n", iface_to_str(VS_TTY), index,
-				PTR_ERR(dev));
+				PTR_ERR(d));
 		}
 	}
 
-	return vsdev;
+	return dev;
 }
 
-void vs_destroy_tty_device(struct vs_device * device)
+void vs_destroy_tty_device(struct vs_dev_priv * device)
 {
 	int idx = device->index;
 

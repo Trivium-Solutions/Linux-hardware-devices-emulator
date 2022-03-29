@@ -7,17 +7,17 @@
 #include "vcpsim.h"
 
 
-struct vs_device * vs_create_i2c_device(long index)
+struct vs_dev_priv * vs_create_i2c_device(struct vs_dev * vsdev, long index)
 {
-	struct vs_device * vsdev = (struct vs_device *)(index + 1); /* XXX */
+	struct vs_dev_priv * dev = (struct vs_dev_priv *)(index + 1); /* XXX */
 
 	pr_debug("%s%ld: dummy device created\n",
 		iface_to_str(VS_I2C), index);
 
-	return vsdev;
+	return dev;
 }
 
-void vs_destroy_i2c_device(struct vs_device * device)
+void vs_destroy_i2c_device(struct vs_dev_priv * device)
 {
 	pr_debug("%s%ld: dummy device destroyed\n",
 		iface_to_str(VS_I2C), (long)device - 1);
