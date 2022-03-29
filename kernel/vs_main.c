@@ -34,8 +34,8 @@ static int (* const init_funcs[])(void) = {
    that must be called at unload time. The functions
    must be called in reverse order! */
 static void (* const cleanup_funcs[])(void) = {
-	vs_cleanup_sysfs,
 	VS_FOREACH_IFACE(CLEANUP_FUNC_PTR)
+	vs_cleanup_sysfs,
 };
 
 #undef INIT_FUNC
