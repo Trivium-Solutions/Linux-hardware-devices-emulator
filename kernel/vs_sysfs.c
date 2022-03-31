@@ -201,7 +201,7 @@ static struct vs_dev * new_dev(enum VS_IFACE iface) {
 			"%s%ld", iface_to_str(iface), idx))) {
 		pr_err("kobject_init_and_add() failed\n");
 		kobject_put(&ret->kobj);
-		/* don't do kfree(ret) as dev_release will take care of that */
+		/* don't do del_dev(ret) as dev_release will take care of that */
 		ret = NULL;
 	}
 	else {
@@ -400,6 +400,12 @@ static void clear_pairs(struct vs_dev * dev)
 
 	list_for_each_safe(e, tmp, &dev->pair_list)
 		pair_delete(list_entry(e, struct vs_pair, entry));
+}
+
+struct vs_pair * find_response(struct vs_dev * dev,
+	const unsigned char * request, int req_size)
+{
+	return find_pair(&dev->pair_list, request, req_size);
 }
 
 static void dev_release(struct kobject *kobj)

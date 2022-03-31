@@ -77,12 +77,23 @@ static inline size_t list_entry_count(struct list_head * list)
 	return ret;
 }
 
+/* in vs_utils.c */
 const char * iface_to_str(enum VS_IFACE iface);
 int str_to_iface(const char * str, enum VS_IFACE * iface);
 const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair);
 const char * pair_to_str(struct vs_pair * pair);
 struct vs_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size);
 struct vs_pair * get_pair_at_index(struct list_head * list, size_t index);
+
+/* in vs_sysfs.c */
+struct vs_pair * find_response(struct vs_dev * dev,
+	const unsigned char * request, int req_size);
+
+/* in vs_main.c */
+void vs_log_request(enum VS_IFACE iface, long dev_num,
+	const void * request, size_t req_size, bool have_response);
+void vs_log_response(enum VS_IFACE iface, long dev_num,
+	const void * response, size_t resp_size);
 
 #endif /* VCPSIM_H_INCLUDED */
 

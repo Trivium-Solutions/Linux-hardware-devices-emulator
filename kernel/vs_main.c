@@ -43,6 +43,36 @@ static void (* const cleanup_funcs[])(void) = {
 #undef DECL_INIT_FUNC
 #undef DECL_CLEANUP_FUNC
 
+static bool log_requests = false;
+static bool log_responses = false;
+
+/*! Write request to kernel log */
+void vs_log_request(enum VS_IFACE iface, long dev_num,
+	const void * request, size_t req_size, bool have_response)
+{
+	if (!log_requests)
+		return;
+
+	pr_info("%s%ld <-- %ld byte(s) (response %savailable):\n",
+		iface_to_str(iface), dev_num, req_size,
+		have_response ? "" : "not ");
+
+	print_hex_dump(KERN_INFO, "", 0, 16, 1, request, req_size, false);
+}
+
+/*! Write response to kernel log */
+void vs_log_response(enum VS_IFACE iface, long dev_num,
+	const void * response, size_t resp_size)
+{
+	if (!log_responses)
+		return;
+
+	pr_info("%s%ld --> %ld byte(s):\n",
+		iface_to_str(iface), dev_num, resp_size);
+
+	print_hex_dump(KERN_INFO, "", 0, 16, 1, response, resp_size, false);
+}
+
 static int __init vcpsim_init(void)
 {
 	int err;
@@ -77,3 +107,8 @@ module_exit(vcpsim_exit);
 
 MODULE_LICENSE("GPL");
 
+module_param(log_requests, bool, 0644);
+MODULE_PARM_DESC(log_requests, "Enable logging of requests");
+
+module_param(log_responses, bool, 0644);
+MODULE_PARM_DESC(log_responses, "Enable logging of responses");

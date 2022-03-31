@@ -74,31 +74,12 @@ static void vcptty_close(struct tty_struct *tty, struct file *file)
 		close_dev(dev);
 }
 
-static int write_to_input(struct vs_dev_priv * dev, const unsigned char * buff, int count)
-{
-	int i;
-	struct tty_port * port;
-
-	port = &dev->port;
-
-	for (i = 0; i < count; i++) {
-		if (!tty_buffer_request_room(port, 1))
-			tty_flip_buffer_push(port);
-
-		tty_insert_flip_char(port, buff[i], TTY_NORMAL);
-	}
-
-	tty_flip_buffer_push(port);
-
-	return count;
-}
-
 static int vcptty_write(struct tty_struct *tty,
 		      const unsigned char *buffer, int count)
 {
 	struct vs_dev_priv * dev = tty->driver_data;
-	int i;
 	int ret = -EINVAL;
+	struct vs_pair * pair;
 
 	if (!dev)
 		return -ENODEV;
@@ -109,21 +90,26 @@ static int vcptty_write(struct tty_struct *tty,
 		/* port was not opened */
 		goto quit;
 
-	/* echo */
-	// XXX ---------------------------------------------------------
+	pair = find_response(dev->vsdev, buffer, count);
 
-	write_to_input(dev, buffer, count);
-	ret = count;
+	if (pair) {
+		int n = tty_insert_flip_string_fixed_flag(&dev->port,
+			pair->resp, TTY_NORMAL, pair->resp_size);
 
-//	pr_debug("written %d byte(s)\n", count);
+		tty_flip_buffer_push(&dev->port);
 
-	for (i = 0; i < count; ++i) {
-		if (!i)
-			pr_info("write: ");
-		pr_cont("%02x%c", buffer[i], (i < count - 1) ? ' ' : '\n');
+		if (n != pair->resp_size)
+			pr_err("tty_insert_flip_string_fixed_flag() "
+				"added only %d byte(s) of %ld\n",
+				n, pair->resp_size);
 	}
 
-	// XXX ---------------------------------------------------------
+	vs_log_request(VS_TTY, dev->index, buffer, count, !!pair);
+
+	if (pair)
+		vs_log_response(VS_TTY, dev->index, pair->resp, pair->resp_size);
+
+	ret = count;
 quit:
 	mutex_unlock(&dev->mutex);
 	return ret;
@@ -146,7 +132,7 @@ static unsigned int vcptty_write_room(struct tty_struct *tty)
 	if (!dev->open_count)
 		goto quit;
 
-	room = 128; /* XXX */
+	room = PAGE_SIZE;
 
 quit:
 	mutex_unlock(&dev->mutex);
