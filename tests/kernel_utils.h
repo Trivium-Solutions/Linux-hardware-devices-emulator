@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* Kernel list implementation for userspace. */
 #include "list.h"
@@ -16,6 +17,10 @@
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
+
+struct kobj_attribute {
+	char dummy;
+};
 
 extern int hex2bin(u8 *dst, const char *src, size_t count);
 extern char *bin2hex(char *dst, const void *src, size_t count);

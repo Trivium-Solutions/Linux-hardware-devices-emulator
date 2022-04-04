@@ -10,6 +10,10 @@
 
 #include "vcpsim.h"
 
+/* Comment this in, if you want to have individual pair operations
+ * (add/delete/etc) logged in debug mode. */
+//#define LOG_PAIRS 1
+
 struct vs_iface {
 	struct kobject kobj;
 	struct list_head dev_list;
@@ -34,6 +38,8 @@ struct vs_dev {
 	enum VS_IFACE iface;
 	long index;
 	struct vs_dev_priv * device;
+	struct kobject * pairs_kobj;
+	DECLARE_BITMAP(pairs_indexes, VS_MAX_PAIRS);
 };
 
 #define to_dev(p) container_of(p, struct vs_dev, kobj)
@@ -172,6 +178,26 @@ static void del_dev(struct vs_dev * dev)
 	kfree(dev);
 }
 
+static void clear_pairs(struct vs_dev * dev);
+
+static void shutdown_dev(struct vs_dev * dev)
+{
+	/* assume that we may be shutting down
+	 * a partially initialized device */
+	if (dev->device)
+		dev_ops[dev->iface].destroy(dev->device);
+
+	clear_pairs(dev);
+
+	list_del(&dev->entry);
+	put_dev_index(dev->iface, dev->index);
+
+	/* kobject_put() allows its argument to be NULL */
+	kobject_put(dev->pairs_kobj);
+	kobject_put(&dev->kobj);
+	/* kfree(dev) will be done in dev_release() */
+}
+
 /* forward declaration */
 static struct kobj_type dev_ktype;
 
@@ -200,8 +226,13 @@ static struct vs_dev * new_dev(enum VS_IFACE iface) {
 	if (!!(err = kobject_init_and_add(&ret->kobj, &dev_ktype, &ifc->kobj,
 			"%s%ld", iface_to_str(iface), idx))) {
 		pr_err("kobject_init_and_add() failed\n");
-		kobject_put(&ret->kobj);
-		/* don't do del_dev(ret) as dev_release will take care of that */
+		shutdown_dev(ret);
+		ret = NULL;
+	}
+	else
+	if (!(ret->pairs_kobj = kobject_create_and_add("pairs", &ret->kobj))) {
+		pr_err("kobject_create_and_add() failed\n");
+		shutdown_dev(ret);
 		ret = NULL;
 	}
 	else {
@@ -267,6 +298,19 @@ static inline int copy_word(const char * src, size_t src_len, char * dst, size_t
 	return s - dst;
 }
 
+static struct vs_iface * iface_from_devname(const char * name)
+{
+#define CHECK(__upper, __lower) \
+	if (strncmp(name, #__upper, sizeof(#__upper) - 1) == 0 || \
+	    strncmp(name, #__lower, sizeof(#__lower) - 1) == 0)   \
+		return &ifaces[VS_##__upper]; \
+	else
+
+	VS_FOREACH_IFACE(CHECK)
+		return NULL;
+#undef CHECK
+}
+
 static struct vs_dev * find_device(struct vs_iface * iface, const char * name)
 {
 	struct vs_dev * dev;
@@ -307,7 +351,7 @@ static ssize_t iface_uninstall_store(struct vs_iface * iface,
 		pr_debug("%s/%s: %s: uninstalling device\n",
 			iface_name, filename, kobject_name(&dev->kobj));
 
-		kobject_put(&dev->kobj);
+		shutdown_dev(dev);
 
 		ret = count;
 	}
@@ -320,15 +364,15 @@ static ssize_t iface_uninstall_store(struct vs_iface * iface,
 #define PERMS_RW 0664
 
 #define DEF_ATTR_RO(__pfx, __name) \
-static struct __pfx##_attribute __name##_attr = \
+static struct __pfx##_attribute __pfx##_##__name##_attr = \
 	__ATTR(__name, PERMS_RO, __pfx##_##__name##_show, NULL)
 
 #define DEF_ATTR_WO(__pfx, __name) \
-static struct __pfx##_attribute __name##_attr = \
+static struct __pfx##_attribute __pfx##_##__name##_attr = \
 	__ATTR(__name, PERMS_WO, NULL, __pfx##_##__name##_store)
 
 #define DEF_ATTR_RW(__pfx, __name) \
-static struct __pfx##_attribute __name##_attr = \
+static struct __pfx##_attribute __pfx##_##__name##_attr = \
 	__ATTR(__name, PERMS_RW, __pfx##_##__name##_show, __pfx##_##__name##_store)
 
 
@@ -343,7 +387,7 @@ static struct __pfx##_attribute __name##_attr = \
 FOREACH_IFACE_ATTR(DEF_ATTR)
 #undef DEF_ATTR
 
-#define DEF_ATTR(__name, __perm)	&__name##_attr.attr,
+#define DEF_ATTR(__name, __perm)	&iface_##__name##_attr.attr,
 static struct attribute * iface_default_attrs[] = {
 	FOREACH_IFACE_ATTR(DEF_ATTR)
 	NULL
@@ -389,6 +433,15 @@ static const struct sysfs_ops dev_sysfs_ops = {
 
 static void pair_delete(struct vs_pair * pair)
 {
+#ifdef LOG_PAIRS
+	pr_debug("%s: deleting pair %ld\n",
+		pair->dev->pairs_kobj->parent->name, pair->index);
+#endif
+
+	clear_bit(pair->index, pair->dev->pairs_indexes);
+
+	sysfs_remove_file(pair->dev->pairs_kobj, &pair->pair_file.attr);
+
 	list_del(&pair->entry);
 	kfree(pair);
 }
@@ -414,11 +467,7 @@ static void dev_release(struct kobject *kobj)
 
 	pr_debug("%s: releasing device\n", kobject_name(kobj));
 
-	dev_ops[dev->iface].destroy(dev->device);
-
-	clear_pairs(dev);
-
-	del_dev(dev);
+	kfree(dev);
 
 	pr_debug("%s: device released\n", kobject_name(kobj));
 }
@@ -443,23 +492,39 @@ static ssize_t dev_store(struct vs_dev * dev,
 static ssize_t dev_count_show(struct vs_dev * dev,
 	struct dev_attribute * attr, char * buf)
 {
-	return sprintf(buf, "%zd", list_entry_count(&dev->pair_list));
+	return sprintf(buf, "%d", bitmap_weight(dev->pairs_indexes, VS_MAX_PAIRS));
 }
 
-static ssize_t dev_pairs_show(struct vs_dev * dev,
-	struct dev_attribute * attr, char * buf)
+static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	ssize_t size = 0;
-	int count = 0;
+	const char * dev_name = kobj->parent->name;
+	const char * filename = attr->attr.name;
+	struct vs_iface * iface;
+	struct vs_dev * dev;
 	struct vs_pair * pair;
+	long idx;
+
+	if (kstrtol(filename, 0, &idx) != 0)
+		return sprintf(buf, "ERROR: invalid index '%s'!", filename);
+
+	iface = iface_from_devname(dev_name);
+
+	if (!iface)
+		return sprintf(buf, "ERROR: couldn't determine the interface for device '%s'!", dev_name);
+
+	dev = find_device(iface, dev_name);
+
+	if (!dev)
+		return sprintf(buf, "ERROR: device '%s' not found!", dev_name);
 
 	list_for_each_entry (pair, &dev->pair_list, entry)
-		size += sprintf(buf + size, "%d\t%s\n", count++, pair_to_str(pair));
+		if (pair->index == idx)
+			return sprintf(buf, "%s", pair_to_str(pair));
 
-	return size;
+	return sprintf(buf, "ERROR: pair with index %ld not found!", idx);
 }
 
-static ssize_t dev_pairs_store(struct vs_dev * dev,
+static ssize_t dev_add_store(struct vs_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	ssize_t ret = -EINVAL;
@@ -467,7 +532,8 @@ static ssize_t dev_pairs_store(struct vs_dev * dev,
 	const char * filename = attr->attr.name;
 	const char * err;
 	struct vs_pair pair;
-	struct vs_pair * new_pair;
+	struct vs_pair * p;
+	long idx;
 
 	err = str_to_pair(buf, count, &pair);
 
@@ -475,21 +541,47 @@ static ssize_t dev_pairs_store(struct vs_dev * dev,
 		pr_err("%s/%s: invalid request-response string: %s\n",
 			dev_name, filename, err);
 	else
-	if (list_entry_count(&dev->pair_list) >= VS_MAX_PAIRS)
+	if ((idx = find_first_zero_bit(dev->pairs_indexes, VS_MAX_PAIRS))
+	     == VS_MAX_PAIRS)
 		pr_err("%s/%s: too many request-response pairs\n",
 			dev_name, filename);
 	else
-	if (find_pair(&dev->pair_list, pair.req, pair.req_size))
-		pr_err("%s/%s: duplicate request-response pair\n",
-			dev_name, filename);
+	if (!!(p = find_pair(&dev->pair_list, pair.req, pair.req_size)))
+		pr_err("%s/%s: duplicate request-response pair (%ld)\n",
+			dev_name, filename, p->index);
 	else
-	if (!(new_pair = kmalloc(sizeof(pair), GFP_KERNEL)))
+	if (!(p = kmalloc(sizeof(pair), GFP_KERNEL)))
 		pr_err("%s/%s: out of memory!\n",
 			dev_name, filename);
 	else {
-		memcpy(new_pair, &pair, sizeof(pair));
-		list_add_tail(&new_pair->entry, &dev->pair_list);
-		ret = count;
+		struct kobj_attribute * f;
+
+		memcpy(p, &pair, sizeof(pair));
+
+		p->dev = dev;
+		p->index = idx;
+		snprintf(p->filename, sizeof(p->filename),
+			"%ld", idx);
+
+		f = &p->pair_file;
+		f->attr.name = p->filename;
+		f->attr.mode = 0444;
+		f->show = pair_show;
+
+		ret = sysfs_create_file(dev->pairs_kobj, &f->attr);
+
+		if (ret)
+			pr_err("%s/%s: sysfs_create_file() failed\n",
+				dev_name, filename);
+		else {
+#ifdef LOG_PAIRS
+			pr_debug("%s/%s: added pair %ld\n",
+				dev_name, filename, idx);
+#endif
+			set_bit(idx, dev->pairs_indexes);
+			list_add_tail(&p->entry, &dev->pair_list);
+			ret = count;
+		}
 	}
 
 	return ret;
@@ -538,7 +630,7 @@ static ssize_t dev_clear_store(struct vs_dev * dev,
  * If you want to add/remove a device attribute, you should start here. */
 #define FOREACH_DEV_ATTR(A)\
 	A(count, RO)	\
-	A(pairs, RW)	\
+	A(add, WO)	\
 	A(delete, WO)	\
 	A(clear, WO)	\
 
@@ -546,7 +638,7 @@ static ssize_t dev_clear_store(struct vs_dev * dev,
 FOREACH_DEV_ATTR(DEF_ATTR)
 #undef DEF_ATTR
 
-#define DEF_ATTR(__name, __perm)	&__name##_attr.attr,
+#define DEF_ATTR(__name, __perm)	&dev_##__name##_attr.attr,
 static struct attribute * dev_default_attrs[] = {
 	FOREACH_DEV_ATTR(DEF_ATTR)
 	NULL
@@ -584,7 +676,7 @@ static void cleanup_iface(enum VS_IFACE iface)
 		struct vs_dev * dev =
 			list_first_entry(dl, struct vs_dev, entry);
 
-		kobject_put(&dev->kobj);
+		shutdown_dev(dev);
 	}
 
 	kobject_put(&ifc->kobj);

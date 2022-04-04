@@ -1,4 +1,5 @@
 #ifdef __KERNEL__
+#	include <linux/kobject.h>
 #	include <linux/kernel.h>
 #	include <linux/list.h>
 #	include <linux/string.h>
@@ -133,13 +134,11 @@ struct vs_pair * find_pair(struct list_head * list, const unsigned char * reques
 
 struct vs_pair * get_pair_at_index(struct list_head * list, size_t index)
 {
-	size_t count = 0;
 	struct vs_pair * ret;
 
 	list_for_each_entry (ret, list, entry) {
-		if (index == count)
+		if (index == ret->index)
 			return ret;
-		count++;
 	}
 
 	return NULL;
