@@ -244,9 +244,11 @@ void vs_cleanup_tty(void)
 
 	/* sanity check */
 	for (i = 0; i < VS_MAX_DEVICES; i++)
-		if (devices[i])
-			pr_err("%s%d was not destroyed!\n",
+		if (devices[i]) {
+			pr_err("%s%d was not destroyed before driver unload!\n",
 				iface_to_str(VS_TTY), i);
+			vs_destroy_tty_device(devices[i]);
+		}
 
 	tty_unregister_driver(driver);
 	tty_driver_kref_put(driver);

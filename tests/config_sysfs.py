@@ -13,6 +13,9 @@ _VS_MAX_REQUEST = 64
 # Maximum length of a response
 _VS_MAX_RESPONSE = 64
 
+# Minimum number of key-value pairs that can be added to a device
+_VS_MIN_PAIRS = 0
+
 # Maximum number of key-value pairs that can be added to a device
 _VS_MAX_PAIRS = 1000
 
@@ -51,7 +54,7 @@ def rand_pair_str():
 # ----------------------------------------------------------------------
 
 def rand_pair_str_list():
-    return { i: rand_pair_str() for i in rand_range(0, _VS_MAX_PAIRS - 1) }
+    return { i: rand_pair_str() for i in rand_range(_VS_MIN_PAIRS, _VS_MAX_PAIRS - 1) }
 
 # ----------------------------------------------------------------------
 
@@ -139,7 +142,7 @@ def config_to_pretty_str(config):
     def on_dev(iface_name, dev_name):
         nonlocal ret
         ret += '    %s:\n' % (dev_name)
-        ret += '      %d pair(s):\n' % (len(config[iface_name][dev_name]))
+        ret += '      %d pair(s)\n' % (len(config[iface_name][dev_name]))
 
     traverse_config(config, on_iface = on_iface, on_dev = on_dev, on_pair = None)
 
