@@ -87,6 +87,10 @@ struct vs_pair * get_pair_at_index(struct list_head * list, size_t index);
 /* in vs_sysfs.c */
 struct vs_pair * find_response(struct vs_dev * dev,
 	const unsigned char * request, int req_size);
+void lock_devs(struct vs_dev * dev);
+void unlock_devs(struct vs_dev * dev);
+void lock_iface_devs(enum VS_IFACE iface);
+void unlock_iface_devs(enum VS_IFACE iface);
 
 /* in vs_main.c */
 void vs_log_request(enum VS_IFACE iface, long dev_num,

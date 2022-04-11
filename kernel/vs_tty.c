@@ -90,6 +90,8 @@ static int vcptty_write(struct tty_struct *tty,
 		/* port was not opened */
 		goto quit;
 
+	lock_devs(dev->vsdev);
+
 	pair = find_response(dev->vsdev, buffer, count);
 
 	if (pair) {
@@ -108,6 +110,8 @@ static int vcptty_write(struct tty_struct *tty,
 
 	if (pair)
 		vs_log_response(VS_TTY, dev->index, pair->resp, pair->resp_size);
+
+	unlock_devs(dev->vsdev);
 
 	ret = count;
 quit:

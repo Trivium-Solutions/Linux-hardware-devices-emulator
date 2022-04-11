@@ -64,6 +64,8 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 			/* writing */
 			struct vs_pair * pair;
 
+			lock_devs(dev->vsdev);
+
 			pair = find_response(dev->vsdev, m->buf, m->len);
 
 			if (dev->resp_size)
@@ -78,6 +80,8 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 			}
 			else
 				dev->resp_size = 0;
+
+			unlock_devs(dev->vsdev);
 
 			vs_log_request(VS_I2C, dev->index, m->buf, m->len, !!pair);
 		}
