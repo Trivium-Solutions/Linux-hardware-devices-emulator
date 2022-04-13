@@ -18,87 +18,87 @@ struct vs_dev_priv {
 	struct vs_dev * vsdev;
 	struct tty_struct * tty;
 	int index;
-	int open_count;
-	struct mutex mutex;
-	struct tty_port port;
 };
 
 static struct tty_driver * driver;
 static struct vs_dev_priv * devices[VS_MAX_DEVICES];
+static struct tty_port ports[VS_MAX_DEVICES];
+
+#define NODEV_ERROR ENODEV
 
 static int vcptty_open(struct tty_struct *tty, struct file *file)
 {
+	int err = -NODEV_ERROR;
 	struct vs_dev_priv * dev;
 
-	tty->driver_data = NULL;
+	/* We assume that at this point:
+	 *
+	 * 1. multiple processes may be trying to open this device
+	 *    simultaneously;
+	 * 2. the device may have already been removed by the user;
+	 * 3. the list of request-response pairs may be changed during
+	 *    the operation.
+	 *
+	 * These assumptions are also valid for the other file operations. */
 
-	dev = devices[tty->index];
+	lock_iface_devs(VS_TTY);
 
-	mutex_lock(&dev->mutex);
+	tty->driver_data = &devices[tty->index];
 
-	tty->driver_data = dev;
+	dev = *(struct vs_dev_priv **)tty->driver_data;
+
+	if (!dev)
+		goto quit;
+
 	dev->tty = tty;
 
-	dev->open_count++;
-	if (dev->open_count == 1) {
-		/* first time init */
-		/* ... */
-	}
+	err = 0;
+quit:
+	unlock_iface_devs(VS_TTY);
 
-	mutex_unlock(&dev->mutex);
-	return 0;
+	return err;
 }
 
 static void close_dev(struct vs_dev_priv * dev)
 {
-	mutex_lock(&dev->mutex);
-
-	if (!dev->open_count)
-		goto quit;
-
-	dev->open_count--;
-
-	if (dev->open_count <= 0) {
-		/* last time clean-up */
-		/* ... */
-	}
-quit:
-	mutex_unlock(&dev->mutex);
+	/* any specific action? */
 }
 
 static void vcptty_close(struct tty_struct *tty, struct file *file)
 {
-	struct vs_dev_priv * dev = tty->driver_data;
+	struct vs_dev_priv * dev;
+
+	lock_iface_devs(VS_TTY);
+
+	dev = *(struct vs_dev_priv **)tty->driver_data;
 
 	if (dev)
 		close_dev(dev);
+
+	unlock_iface_devs(VS_TTY);
 }
 
 static int vcptty_write(struct tty_struct *tty,
 		      const unsigned char *buffer, int count)
 {
-	struct vs_dev_priv * dev = tty->driver_data;
-	int ret = -EINVAL;
+	int ret = -NODEV_ERROR;
+	struct vs_dev_priv * dev;
 	struct vs_pair * pair;
 
+	lock_iface_devs(VS_TTY);
+
+	dev = *(struct vs_dev_priv **)tty->driver_data;
+
 	if (!dev)
-		return -ENODEV;
-
-	mutex_lock(&dev->mutex);
-
-	if (!dev->open_count)
-		/* port was not opened */
 		goto quit;
-
-	lock_devs(dev->vsdev);
 
 	pair = find_response(dev->vsdev, buffer, count);
 
 	if (pair) {
-		int n = tty_insert_flip_string_fixed_flag(&dev->port,
+		int n = tty_insert_flip_string_fixed_flag(&ports[dev->index],
 			pair->resp, TTY_NORMAL, pair->resp_size);
 
-		tty_flip_buffer_push(&dev->port);
+		tty_flip_buffer_push(&ports[dev->index]);
 
 		if (n != pair->resp_size)
 			pr_err("tty_insert_flip_string_fixed_flag() "
@@ -111,11 +111,10 @@ static int vcptty_write(struct tty_struct *tty,
 	if (pair)
 		vs_log_response(VS_TTY, dev->index, pair->resp, pair->resp_size);
 
-	unlock_devs(dev->vsdev);
-
 	ret = count;
 quit:
-	mutex_unlock(&dev->mutex);
+	unlock_iface_devs(VS_TTY);
+
 	return ret;
 }
 
@@ -125,21 +124,21 @@ static int vcptty_write_room(struct tty_struct *tty)
 static unsigned int vcptty_write_room(struct tty_struct *tty)
 #endif
 {
-	struct vs_dev_priv * dev = tty->driver_data;
-	int room = -EINVAL;
+	struct vs_dev_priv * dev;
+	int room = -NODEV_ERROR;
+
+	lock_iface_devs(VS_TTY);
+
+	dev = *(struct vs_dev_priv **)tty->driver_data;
 
 	if (!dev)
-		return -ENODEV;
-
-	mutex_lock(&dev->mutex);
-
-	if (!dev->open_count)
 		goto quit;
 
 	room = PAGE_SIZE;
 
 quit:
-	mutex_unlock(&dev->mutex);
+	unlock_iface_devs(VS_TTY);
+
 	return room;
 }
 
@@ -160,28 +159,21 @@ struct vs_dev_priv * vs_create_tty_device(struct vs_dev * vsdev, long index)
 		pr_err("%s%ld: device not created; index out of range!",
 			iface_to_str(VS_TTY), index);
 	else
-	if (!(dev = kmalloc(sizeof(*dev), GFP_KERNEL)))
+	if (!(dev = kzalloc(sizeof(*dev), GFP_KERNEL)))
 		pr_err("%s%ld: device not created; out of memory!",
 			iface_to_str(VS_TTY), index);
 	else {
 		struct device * d;
 
 		dev->vsdev = vsdev;
-
-		mutex_init(&dev->mutex);
-
 		dev->index = index;
-		dev->open_count = 0;
 
 		devices[index] = dev;
 
-		tty_port_init(&dev->port);
-
-		d = tty_port_register_device(&dev->port, driver,
+		d = tty_port_register_device(&ports[index], driver,
 			index, NULL);
 
 		if (IS_ERR(d)) {
-			tty_port_destroy(&dev->port);
 			kfree(dev);
 			devices[index] = dev = NULL;
 			pr_err("%s%ld: device not created; "
@@ -199,13 +191,13 @@ void vs_destroy_tty_device(struct vs_dev_priv * device)
 	int idx = device->index;
 
 	tty_unregister_device(driver, idx);
-	tty_port_destroy(&device->port);
 	kfree(device);
 	devices[idx] = NULL;
 }
 
 int vs_init_tty(void)
 {
+	int i;
 	int err;
 
 	pr_debug("loading tty driver\n");
@@ -215,6 +207,9 @@ int vs_init_tty(void)
 
 	if (!driver)
 		return -ENOMEM;
+
+	for (i = 0; i < VS_MAX_DEVICES; i++)
+		tty_port_init(&ports[i]);
 
 	driver->owner = THIS_MODULE;
 	driver->driver_name = TTY_DRIVER_NAME;
@@ -233,6 +228,10 @@ int vs_init_tty(void)
 	if (err) {
 		pr_err("failed to register " TTY_DRIVER_NAME " driver");
 		tty_driver_kref_put(driver);
+
+		for (i = 0; i < VS_MAX_DEVICES; i++)
+			tty_port_destroy(&ports[i]);
+
 		return err;
 	}
 
@@ -241,10 +240,10 @@ int vs_init_tty(void)
 	return 0;
 }
 
-
 void vs_cleanup_tty(void)
 {
 	int i;
+
 
 	/* sanity check */
 	for (i = 0; i < VS_MAX_DEVICES; i++)
@@ -256,6 +255,9 @@ void vs_cleanup_tty(void)
 
 	tty_unregister_driver(driver);
 	tty_driver_kref_put(driver);
+
+	for (i = 0; i < VS_MAX_DEVICES; i++)
+		tty_port_destroy(&ports[i]);
 
 	pr_info("tty driver unloaded\n");
 }
