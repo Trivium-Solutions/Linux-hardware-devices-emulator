@@ -19,6 +19,7 @@ struct vs_chip {
 };
 
 struct vs_dev_priv {
+	bool in_use;
 	struct vs_dev * vsdev;
 	struct i2c_adapter adapter;
 	long index;
@@ -26,15 +27,19 @@ struct vs_dev_priv {
 	u8 * resp_ptr;
 	size_t resp_size;
 	struct vs_chip chip;
+	struct list_head devices;
 };
 
 #define to_priv(adap) container_of(adap, struct vs_dev_priv, adapter)
 
-static struct vs_dev_priv * devices[VS_MAX_DEVICES];
+static struct list_head devices;
 
-static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
+#define NODEV_ERROR ENODEV
+
+static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
 {
 	struct vs_dev_priv * dev = to_priv(adap);
+	int err = num;
 	int i;
 
 	for (i = 0; i < num; i++) {
@@ -56,20 +61,19 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 				vs_log_response(VS_I2C, dev->index, m->buf, m->len);
 			}
 			else {
-				dev_dbg(&adap->dev, "attempt to read %d byte(s)\n", m->len);
+				dev_dbg_ratelimited(&adap->dev, "attempt to read %d byte(s)\n", m->len);
 				m->len = 0;
+				err = -EINVAL;
 			}
 		}
 		else {
 			/* writing */
 			struct vs_pair * pair;
 
-			lock_devs(dev->vsdev);
-
 			pair = find_response(dev->vsdev, m->buf, m->len);
 
 			if (dev->resp_size)
-				dev_err(&adap->dev, "new request arrived "
+				dev_err_ratelimited(&adap->dev, "new request arrived "
 					"while previous one is pending; "
 					"possible data loss\n");
 
@@ -81,20 +85,39 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 			else
 				dev->resp_size = 0;
 
-			unlock_devs(dev->vsdev);
-
 			vs_log_request(VS_I2C, dev->index, m->buf, m->len, !!pair);
 		}
 	}
 
-	return num;
+	return err;
 }
 
-static int vcpi2c_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
+static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
+{
+	struct vs_dev_priv * dev = to_priv(adap);
+	int err = -NODEV_ERROR;
+
+	/* If the transfer happens while the device is being removed,
+	 * and we use lock_iface_devs(), we may get into a deadlock
+	 * (somewhere in i2c_del_adapter()). In order to avoid this,
+	 * we mark the device as unused before removal and handle
+	 * the transfer only if the device is in use. */
+	if (dev->in_use) {
+		lock_iface_devs(VS_I2C);
+
+		err = do_master_xfer(adap, msgs, num);
+
+		unlock_iface_devs(VS_I2C);
+	}
+
+	return err;
+}
+
+static int do_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
 	char read_write, u8 command, int size, union i2c_smbus_data *data)
 {
-	struct vs_dev_priv * vsdev = to_priv(adap);
-	struct vs_chip * chip = &vsdev->chip;
+	struct vs_dev_priv * dev = to_priv(adap);
+	struct vs_chip * chip = &dev->chip;
 	s32 err = 0;
 	int i, len;
 
@@ -215,6 +238,24 @@ static int vcpi2c_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short
 	return err;
 }
 
+static int vcpi2c_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
+	char read_write, u8 command, int size, union i2c_smbus_data *data)
+{
+	struct vs_dev_priv * dev = to_priv(adap);
+	int err = -NODEV_ERROR;
+
+	if (dev->in_use) {
+		lock_iface_devs(VS_I2C);
+
+		err = do_smbus_xfer(adap, addr, flags, read_write,
+			command, size, data);
+
+		unlock_iface_devs(VS_I2C);
+	}
+
+	return err;
+}
+
 static u32 vcpi2c_func(struct i2c_adapter * adapter)
 {
 	return I2C_FUNCTIONALITY;
@@ -228,22 +269,51 @@ static const struct i2c_algorithm smbus_algorithm = {
 	.functionality	= vcpi2c_func,
 };
 
+static void init_dev(struct vs_dev_priv * dev, struct vs_dev * vsdev,
+	long index)
+{
+	dev->in_use = true;
+	dev->vsdev = vsdev;
+	dev->index = index;
+	dev->resp_size = 0;
+	memset(&dev->chip, 0, sizeof(dev->chip));
+	dev->adapter.owner = THIS_MODULE;
+	dev->adapter.class = I2C_CLASS_HWMON | I2C_CLASS_SPD;
+	dev->adapter.algo = &smbus_algorithm;
+	snprintf(dev->adapter.name,  sizeof(dev->adapter.name),
+		"vcpsim i2c adapter %ld", index);
+}
+
+static struct vs_dev_priv * find_unused_dev(void)
+{
+	struct vs_dev_priv * dev;
+
+	list_for_each_entry (dev, &devices, devices)
+		if (!dev->in_use)
+			return dev;
+	return NULL;
+}
+
 static struct vs_dev_priv * alloc_dev(struct vs_dev * vsdev, long index)
 {
-	struct vs_dev_priv * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
+	struct vs_dev_priv * ret = find_unused_dev();
+	bool is_new = !ret;
 
-	if (!ret)
+	if (is_new && !(ret = kzalloc(sizeof(*ret), GFP_KERNEL)))
 		return ret;
 
-	ret->vsdev = vsdev;
-	ret->index = index;
-	ret->adapter.owner = THIS_MODULE;
-	ret->adapter.class = I2C_CLASS_HWMON | I2C_CLASS_SPD;
-	ret->adapter.algo = &smbus_algorithm;
-	snprintf(ret->adapter.name,  sizeof(ret->adapter.name),
-		"vcpsim i2c adapter %ld", index);
+	init_dev(ret, vsdev, index);
+
+	if (is_new)
+		list_add(&ret->devices, &devices);
 
 	return ret;
+}
+
+static void del_dev(struct vs_dev_priv * dev)
+{
+	list_del(&dev->devices);
+	kfree(dev);
 }
 
 struct vs_dev_priv * vs_create_i2c_device(struct vs_dev * vsdev, long index)
@@ -263,23 +333,19 @@ struct vs_dev_priv * vs_create_i2c_device(struct vs_dev * vsdev, long index)
 	if (!!(err = i2c_add_adapter(&dev->adapter))) {
 		pr_err("%s%ld: i2c_add_adapter() failed (error code %d)",
 			iface_to_str(VS_I2C), index, err);
-		kfree(dev);
+		del_dev(dev);
 		dev = NULL;
 	}
-	else
-		devices[index] = dev;
 
 	return dev;
 }
 
 void vs_destroy_i2c_device(struct vs_dev_priv * device)
 {
-	int idx = device->index;
+
+	device->in_use = false;
 
 	i2c_del_adapter(&device->adapter);
-	kfree(device);
-
-	devices[idx] = NULL;
 }
 
 int vs_init_i2c(void)
@@ -288,6 +354,8 @@ int vs_init_i2c(void)
 
 	pr_debug("loading i2c driver\n");
 
+	INIT_LIST_HEAD(&devices);
+
 	pr_info("i2c driver loaded\n");
 
 	return err;
@@ -295,16 +363,21 @@ int vs_init_i2c(void)
 
 void vs_cleanup_i2c(void)
 {
-	int i;
+	struct list_head * e;
+	struct list_head * tmp;
 
-	/* sanity check */
-	for (i = 0; i < VS_MAX_DEVICES; i++)
-		if (devices[i]) {
-			pr_err("%s%d was not destroyed before driver unload!\n",
-				iface_to_str(VS_I2C), i);
-			vs_destroy_i2c_device(devices[i]);
+	list_for_each_safe(e, tmp, &devices) {
+		struct vs_dev_priv * dev = list_entry(e, struct vs_dev_priv, devices);
+
+		/* sanity check */
+		if (dev->in_use) {
+			pr_err("%s%ld was not destroyed before driver unload!\n",
+				iface_to_str(VS_I2C), dev->index);
+			vs_destroy_i2c_device(dev);
 		}
 
+		del_dev(dev);
+	}
 
 	pr_info("i2c driver unloaded\n");
 }
