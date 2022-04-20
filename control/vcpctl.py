@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-Control Utility
+    Control Utility
 '''
 import sys
 import os
@@ -140,6 +140,7 @@ def cmd_start(filename):
     assert_root()
 
     if is_module_loaded():
+        config.ifaces_cleanup()
         unload_module()
 
     load_module()
@@ -148,14 +149,14 @@ def cmd_start(filename):
 
     config.write_config(cfg)
 
-    # TODO interface-specific init
+    config.ifaces_init(cfg)
 
 # ----------------------------------------------------------------------
 
 def cmd_stop():
     assert_root()
 
-    # TODO interface-specific clean-up
+    config.ifaces_cleanup()
 
     if is_module_loaded():
         unload_module()
@@ -169,13 +170,32 @@ def cmd_debug(filename):
     load_module()
 
     cfg = load_from_ini(filename)
+    #print(config.config_to_str(cfg))
 
     config.write_config(cfg)
 
 # ----------------------------------------------------------------------
 
 def cmd_random_ini(filename):
-    pass
+    if os.path.exists(filename):
+        throw('%s: file already exists' % (filename))
+
+    cfg = config.rand_config()
+    txt = ''
+    empty_line = False
+
+    def on_dev(iface_name, dev_name):
+        nonlocal txt, empty_line
+        txt += '%s[%s]\n' % (empty_line and '\n' or '', dev_name)
+        empty_line = True
+
+    def on_pair(iface_name, dev_name, pair_num, pair):
+        nonlocal txt
+        txt += '%s\n' % (pair)
+
+    config.traverse_config(cfg, on_iface = None, on_dev = on_dev, on_pair = on_pair)
+
+    config.write_file(filename, txt)
 
 # ----------------------------------------------------------------------
 
@@ -196,6 +216,7 @@ _OPTS = {
     },
 
     # undocumented commands (debugging, testing, etc)
+    # DO NOT USE!
 
     'debug': {
         'fn': cmd_debug,
@@ -216,11 +237,12 @@ def main(argv):
         if cmd in _OPTS:
             o = _OPTS[cmd]
             fn = o['fn']
-            if o.get('arg', '') != '':
+            arg = o.get('arg', '')
+            if arg != '':
                 if len(argv) < 3:
-                    throw('This command requires an additional ' +
-                        'parameter, which was not specified; run ' +
-                        '"%s help" for help' % (PROG_NAME))
+                    throw(('This command requires an additional ' +
+                        'parameter <%s>, which was not specified; run ' +
+                        '"%s help" for help') % (arg, PROG_NAME))
                 fn(argv[2])
             else:
                 fn()

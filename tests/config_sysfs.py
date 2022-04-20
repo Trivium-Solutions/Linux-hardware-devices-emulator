@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 '''
-Testing routines
+    Configuring and testing routines
+
+    This module was started as a collection of testing routines,
+    but now it is also used by the control utility.
+
+    TODO split this into modules containing sysfs, configure and system
+         functions respectively (?)
 '''
 import os
 import sys
 import random
 import subprocess
 
-IFACES = ('i2c', 'tty')
+IF_I2C = 'i2c'
+IF_TTY = 'tty'
+
+IFACES = (IF_I2C, IF_TTY)
 
 KMOD_NAME = 'vcpsim'
 
@@ -254,6 +263,94 @@ def is_module_loaded(module):
 
 # ----------------------------------------------------------------------
 
+_TTY_DEV_SYMLINKS = True
+#_TTY_DEV_SYMLINKS = False
+
+# XXX name of the tty device VcpSdkCmd uses
+VcpSdkCmd_TTY_NAME = '/dev/ttyUSB'
+
+VCPSIM_TTY_NAME = '/dev/ttyVCP'
+
+def ifaces_init(config):
+
+    def print_avail(d1, d2):
+        print(d1, 'as', d2)
+
+    # i2c
+
+    ifc = IF_I2C
+
+    # We cannot access i2c devices from userspace without the i2c-dev
+    # driver loaded.
+
+    if not is_module_loaded('i2c_dev'):
+        run(['modprobe', 'i2c_dev'])
+
+    i2c_dev_dir = '/sys/class/i2c-dev'
+    sstr = 'adapter '
+    devs = {}
+
+    print('Available devices:')
+    print('------------------')
+
+    # Collect our /dev/i2c* device names from /sys/class/i2c-dev
+
+    with os.scandir(i2c_dev_dir) as it:
+        for e in it:
+            if e.is_dir():
+                fstr = read_file('/'.join([i2c_dev_dir, e.name, 'name']))
+                if KMOD_NAME in fstr:
+                    n = fstr.find(sstr)
+                    if n >= 0:
+                        devs[ifc + fstr[n + len(sstr)]] = '/dev/' + e.name
+
+    for d in sorted(devs, key = lambda d: int(d[len(ifc):])):
+        print_avail(d, devs[d])
+
+    # tty
+
+    import glob
+
+    ifc = IF_TTY
+
+    n = 0
+    for df in sorted(glob.glob(VCPSIM_TTY_NAME + '*'), key = lambda d: int(d[len(VCPSIM_TTY_NAME):])):
+        dev_num = df[len(VCPSIM_TTY_NAME):]
+        if _TTY_DEV_SYMLINKS:
+            while True:
+                lnk = VcpSdkCmd_TTY_NAME + str(n)
+                if not os.path.exists(lnk):
+                    break
+                n += 1
+            os.symlink(df, lnk)
+            print_avail(ifc + dev_num, lnk)
+        else:
+            print_avail(ifc + dev_num, df)
+
+# ----------------------------------------------------------------------
+
+def ifaces_cleanup():
+
+    # i2c
+
+    # Earlier on we ensured that i2c-dev was loaded and now we have
+    # no way of knowing whether or not it had been loaded before. So we
+    # just leave it loaded :(
+
+    # tty
+
+    if _TTY_DEV_SYMLINKS:
+        import glob
+
+        # remove all symlinks linking to our devices
+        for lnk in glob.glob(VcpSdkCmd_TTY_NAME + '*'):
+            if os.path.islink(lnk):
+                fn = os.path.realpath(lnk)
+                if VCPSIM_TTY_NAME in fn:
+                    os.remove(lnk)
+
+# ----------------------------------------------------------------------
+
 def run(args):
     p = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
     p.wait()
@@ -267,6 +364,15 @@ def run(args):
 # ----------------------------------------------------------------------
 
 def test_random_config_write():
+    '''
+        Configuration test
+
+        1. create a random configuration;
+        2. load it into the module;
+        3. read the configuration from the module;
+        4. compare what was written with what was read;
+        5. repeat the previous steps.
+    '''
 
     if os.geteuid() != 0:
         sys.exit('You must be root to run this script')
