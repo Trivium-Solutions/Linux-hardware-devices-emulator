@@ -45,9 +45,21 @@ def rand_range(min, max):
 
 # ----------------------------------------------------------------------
 
+def is_hex_str(s):
+    for c in s:
+        if c not in '0123456789abcdefABCDEF':
+            return False
+    return True
+
+# ----------------------------------------------------------------------
+
+def bytes_to_hex_str(b):
+    return ''.join('%02x' % x for x in b)
+
+# ----------------------------------------------------------------------
+
 def rand_hex_str(max):
-    return ''.join('%02x' % x for x in bytearray(random.randint(0, 255) \
-        for i in rand_range(1, max)))
+    return bytes_to_hex_str(bytes(random.randint(0, 255) for i in rand_range(1, max)))
 
 # ----------------------------------------------------------------------
 

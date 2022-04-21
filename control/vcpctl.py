@@ -34,7 +34,7 @@ def assert_root():
 
 def get_module_filename(modname):
     modname += '.ko'
-    dirs = ['.', '../kernel']
+    dirs = ('.', '../kernel')
     for d in dirs:
         p = os.path.realpath('/'.join((PROG_DIR, d, modname)))
         if os.path.isfile(p):
@@ -72,11 +72,23 @@ def unload_module():
 # ----------------------------------------------------------------------
 
 def load_from_ini(filename):
+
+    def error(msg):
+        throw('In file %s: %s' % (filename, msg))
+
+    def is_quoted(s):
+        return s.startswith('"') and s.endswith('"')
+
+    def fix_quoted(s):
+        if not is_quoted(s):
+            return s
+        return config.bytes_to_hex_str(bytes(s[1: -1], encoding = 'utf8'))
+
     ini = configparser.ConfigParser()
     lst = ini.read(filename)
 
     if len(lst) == 0:
-        throw('%s: file not found' % (filename))
+        throw('%s: File not found' % (filename))
 
     cfg = {}
 
@@ -86,7 +98,7 @@ def load_from_ini(filename):
         if ini.has_section(ifc):
             # dev0 == dev
             if ini.has_section(ifc + '0'):
-                throw('Configuration has both %s and %s0' % (ifc, ifc))
+                error('Configuration has both %s and %s0' % (ifc, ifc))
             ini[ifc + '0'] = ini[ifc]
             ini.remove_section(ifc)
         while True:
@@ -95,8 +107,23 @@ def load_from_ini(filename):
                 i = 0
                 pairs = {}
                 for k, v in ini[dev_name].items():
-                    # TODO handle TXT: lines
-                    pairs[i] = k + '=' + v
+                    k2 = fix_quoted(k)
+                    v2 = fix_quoted(v)
+
+                    # Do some basic checking. The kernel module won't
+                    # let a bad string pass anyway, but the error
+                    # message may be a bit cryptic.
+
+                    if is_quoted(k) and k2 in ini[dev_name].keys():
+                        error('Duplicate key: %s' % (k))
+
+                    if not config.is_hex_str(k2):
+                        error('Invalid key: %s' % (k))
+
+                    if not config.is_hex_str(v2):
+                        error('Invalid value: %s' % (v))
+
+                    pairs[i] = k2 + '=' + v2
                     i += 1
                 cfg[ifc][dev_name] = pairs
                 ini.remove_section(dev_name)
@@ -106,7 +133,7 @@ def load_from_ini(filename):
 
     for k in ini:
         if k != 'DEFAULT':
-            throw('Device %s has an non-consecutive number' % (k))
+            error('Device %s has an non-consecutive number' % (k))
 
     return cfg
 
@@ -199,6 +226,11 @@ def cmd_random_ini(filename):
 
 # ----------------------------------------------------------------------
 
+def cmd_check_ini(filename):
+    cfg = load_from_ini(filename)
+
+# ----------------------------------------------------------------------
+
 _OPTS = {
     'help': {
         'fn': cmd_help,
@@ -223,8 +255,13 @@ _OPTS = {
         'arg': 'filename',
         'hide': True,
     },
-    'random_ini': {
+    'random-ini': {
         'fn': cmd_random_ini,
+        'arg': 'filename',
+        'hide': True,
+    },
+    'check-ini': {
+        'fn': cmd_check_ini,
         'arg': 'filename',
         'hide': True,
     },
@@ -262,7 +299,7 @@ def cleanup():
 
 # TODO make this assignable with a command-line option?
 _DEBUG = False
-_DEBUG = True
+#_DEBUG = True
 
 _ERROR_EXIT_CODE = 1
 
