@@ -7,3 +7,4 @@ Module.symvers
 *.mod.c
 *.mod.o
 *.swp
+**/__pycache__
