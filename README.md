@@ -5,8 +5,8 @@ Emulator of arbitrary Linux devices.
 This software consists of two major components: a Linux kernel module
 and a control utility. The kernel module implements drivers for various
 devices, which act as real hardware devices capable of exchanging data
-with a user space application. The data exchange is done in the form of
-request-response, where the user space application sends packets of data
+with a user-space application. The data exchange is done in the form of
+request-response, where the user-space application sends packets of data
 to the emulated device and receives packets of data in reply, according
 to configuration.
 
@@ -22,7 +22,7 @@ The control utility is responsible for configuring the kernel module.
 The emulator doesn't require any special installation procedure, except
 for building the kernel module. You have to build the kernel module
 yourself because Linux won't allow you to load a module built for a
-different version of kernel. Building a kernel module in Linux,
+different version of the kernel. Building a kernel module in Linux,
 however, is not so difficult as it may seem. For example, on Ubuntu you
 may need to install just a couple of additional packages:
 
@@ -53,7 +53,7 @@ tty0 as /dev/ttyUSB0
 
 Note that the control utility printed a list of emulated devices
 accessible from user space. The numbers in the /dev-names may be
-different on your machine, since they depend on your hardware.
+different on your machine since they depend on your hardware.
 
 Below is an example of the `VcpSdkCmd` utility interacting with the
 emulated TTY device `/dev/ttyUSB0`. The device number `0` is specified
@@ -97,3 +97,50 @@ To get a list of available commands, run:
 ```
 $ ./vcpctl help
 ```
+
+## Configuration syntax
+
+Configuration files have an
+[INI](https://en.wikipedia.org/wiki/INI_file)-like syntax. Sections
+represent the devices you want to emulate. For example, if you want to
+emulate a TTY device, you must add a `[tty]` section to the file. If
+you want to emulate several devices, you must append a number to each
+section name. The numbers must be consecutive and start with `0`, e.g.:
+
+```
+[tty0]
+...
+[tty1]
+...
+[tty2]
+...
+```
+
+The key-value pairs of the sections represent request and response
+data. Each byte of the data is represented as a string value of the
+form `xx`, where `x` is a hexadecimal number, e.g. `1A`. All the data
+bytes are represented as a consecutive string of such values, e.g.
+`1A2B3C`.
+
+Thus, if a request has the bytes `00` `01` `03` `04`, and the response
+is `AA` `BB` `CC`, you should add the following key-value pair to the
+corresponding device section:
+
+```
+[tty]
+00010304=AABBCC
+```
+
+Optionally, instead of hexadecimal values, you can use quoted string
+values. For example, if your request has the string value
+`"r80000000"`, you don't need to convert it to `723830303030303030`, you
+can just use the string value in quotes. In this case, your
+request-response pair may look like this:
+
+
+```
+[tty]
+"r80000000"="r80000000=12345678"
+```
+
+A simple example configuration is in the file [tests/test.ini](/tests/test.ini).
