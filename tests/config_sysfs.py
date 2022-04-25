@@ -154,6 +154,15 @@ def config_to_str(config):
 
 # ----------------------------------------------------------------------
 
+def is_dev_name(s):
+    for ifc in IFACES:
+        if s == ifc or \
+           (s.find(ifc) == 0 and s[len(ifc) - len(s):].isdigit()):
+            return True
+    return False
+
+# ----------------------------------------------------------------------
+
 def config_to_pretty_str(config):
     ret = ''
 
