@@ -23,10 +23,10 @@ KMOD_NAME = 'hwemu'
 SYSFS_BASE_DIR = '/sys/kernel/' + KMOD_NAME
 
 # Maximum length of a request
-HWE_MAX_REQUEST = 64
+HWE_MAX_REQUEST = (4096 - 1) // 4
 
 # Maximum length of a response
-HWE_MAX_RESPONSE = 64
+HWE_MAX_RESPONSE = (4096 - 1) // 4
 
 # Minimum number of key-value pairs that can be added to a device
 HWE_MIN_PAIRS = 0
@@ -34,9 +34,8 @@ HWE_MIN_PAIRS = 0
 # Maximum number of key-value pairs that can be added to a device
 HWE_MAX_PAIRS = 1000
 
-
 # Maximum number of devices per interface
-HWE_MAX_DEVICES = 8
+HWE_MAX_DEVICES = 256
 
 # ----------------------------------------------------------------------
 
@@ -408,6 +407,8 @@ def test_random_config_write():
     random.seed()
 
     _REPEATS = 50
+
+    print('WARNING: With large maximum values, creating random configs may take a VERY long time.')
 
     for i in range(_REPEATS):
         print('--- Test %d of %d --------------------' % (i + 1, _REPEATS))

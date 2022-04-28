@@ -28,17 +28,17 @@ enum HWE_IFACE {
 };
 #undef DEFINE_IFACE
 
-/*! Maximum length of a request */
-#define	HWE_MAX_REQUEST	64
+/*! Maximum length of a request, given the maximum sysfs file size */
+#define	HWE_MAX_REQUEST	((4096 - 1) / 4)
 
-/*! Maximum length of a response */
-#define	HWE_MAX_RESPONSE	64
+/*! Maximum length of a response, given the maximum sysfs file size */
+#define	HWE_MAX_RESPONSE	((4096 - 1) / 4)
 
 /*! Maximum number of key-value pairs that can be added to a device */
 #define	HWE_MAX_PAIRS	1000
 
 /*! Maximum number of devices per interface */
-#define	HWE_MAX_DEVICES	8
+#define	HWE_MAX_DEVICES	256
 
 /*! Generic device. */
 struct hwe_dev;

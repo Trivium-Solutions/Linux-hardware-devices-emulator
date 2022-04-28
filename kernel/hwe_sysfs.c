@@ -559,15 +559,17 @@ static ssize_t dev_add_store(struct hwe_dev * dev,
 	const char * dev_name = kobject_name(&dev->kobj);
 	const char * filename = attr->attr.name;
 	const char * err;
-	struct hwe_pair pair;
+	struct hwe_pair * pair;
 	struct hwe_pair * p;
 	long idx;
 
 	lock_devs(dev);
 
-	err = str_to_pair(buf, count, &pair);
-
-	if (err)
+	if (!(pair = kmalloc(sizeof(*pair), GFP_KERNEL)))
+		pr_err("%s/%s: out of memory!\n",
+			dev_name, filename);
+	else
+	if (!!(err = str_to_pair(buf, count, pair)))
 		pr_err("%s/%s: invalid request-response string: %s\n",
 			dev_name, filename, err);
 	else
@@ -576,25 +578,19 @@ static ssize_t dev_add_store(struct hwe_dev * dev,
 		pr_err("%s/%s: too many request-response pairs\n",
 			dev_name, filename);
 	else
-	if (!!(p = find_pair(&dev->pair_list, pair.req, pair.req_size)))
+	if (!!(p = find_pair(&dev->pair_list, pair->req, pair->req_size)))
 		pr_err("%s/%s: duplicate request-response pair (%ld)\n",
 			dev_name, filename, p->index);
-	else
-	if (!(p = kmalloc(sizeof(pair), GFP_KERNEL)))
-		pr_err("%s/%s: out of memory!\n",
-			dev_name, filename);
 	else {
 		struct kobj_attribute * f;
 
-		memcpy(p, &pair, sizeof(pair));
-
-		p->dev = dev;
-		p->index = idx;
-		snprintf(p->filename, sizeof(p->filename),
+		pair->dev = dev;
+		pair->index = idx;
+		snprintf(pair->filename, sizeof(pair->filename),
 			"%ld", idx);
 
-		f = &p->pair_file;
-		f->attr.name = p->filename;
+		f = &pair->pair_file;
+		f->attr.name = pair->filename;
 		f->attr.mode = 0444;
 		f->show = pair_show;
 
@@ -609,10 +605,13 @@ static ssize_t dev_add_store(struct hwe_dev * dev,
 				dev_name, filename, idx);
 #endif
 			set_bit(idx, dev->pairs_indexes);
-			list_add_tail(&p->entry, &dev->pair_list);
+			list_add_tail(&pair->entry, &dev->pair_list);
 			ret = count;
 		}
 	}
+
+	if (ret < 0)
+		kfree(pair);
 
 	unlock_devs(dev);
 

@@ -110,13 +110,17 @@ def load_from_ini(filename):
             if ini.has_section(dev_name):
                 i = 0
                 pairs = {}
+
+                # Do some checking. The kernel module won't
+                # let a bad string pass anyway, but the error
+                # message may be a bit cryptic.
+
+                if dev_num == config.HWE_MAX_DEVICES:
+                    error('Too many %s devices' % (ifc))
+
                 for k, v in ini[dev_name].items():
                     k2 = convert_quoted(k)
                     v2 = convert_quoted(v)
-
-                    # Do some checking. The kernel module won't
-                    # let a bad string pass anyway, but the error
-                    # message may be a bit cryptic.
 
                     if not config.is_hex_str(k2):
                         error('Invalid character in request: %s' % (k))
