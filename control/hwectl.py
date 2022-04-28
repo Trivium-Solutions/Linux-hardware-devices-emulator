@@ -121,7 +121,7 @@ def load_from_ini(filename):
                     if not config.is_hex_str(k2):
                         error('Invalid character in request: %s' % (k))
 
-                    if len(k2) > config._VS_MAX_REQUEST * 2:
+                    if len(k2) > config.HWE_MAX_REQUEST * 2:
                         error('Request string too long: %s' % (k))
 
                     if (len(k2) & 1) != 0:
@@ -137,7 +137,7 @@ def load_from_ini(filename):
                     if not config.is_hex_str(v2):
                         error('Invalid character in response: %s' % (v))
 
-                    if len(v2) > config._VS_MAX_RESPONSE * 2:
+                    if len(v2) > config.HWE_MAX_RESPONSE * 2:
                         error('Response string too long: %s' % (v))
 
                     if (len(v2) & 1) != 0:

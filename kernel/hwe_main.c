@@ -4,38 +4,38 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 
-#include "vcpsim.h"
+#include "hwemu.h"
 
 #define DECL_INIT_FUNC(__upper, __lower) \
-	extern int vs_init_##__lower(void);
+	extern int hwe_init_##__lower(void);
 #define DECL_CLEANUP_FUNC(__upper, __lower) \
-	extern void vs_cleanup_##__lower(void);
+	extern void hwe_cleanup_##__lower(void);
 
-#define INIT_FUNC_PTR(__upper, __lower) vs_init_##__lower,
-#define CLEANUP_FUNC_PTR(__upper, __lower) vs_cleanup_##__lower,
+#define INIT_FUNC_PTR(__upper, __lower) hwe_init_##__lower,
+#define CLEANUP_FUNC_PTR(__upper, __lower) hwe_cleanup_##__lower,
 
-extern int vs_init_sysfs(void);
-extern void vs_cleanup_sysfs(void);
+extern int hwe_init_sysfs(void);
+extern void hwe_cleanup_sysfs(void);
 
 /*! Declare init functions for each device type. */
-VS_FOREACH_IFACE(DECL_INIT_FUNC)
+HWE_FOREACH_IFACE(DECL_INIT_FUNC)
 
 /*! Declare clean-up functions for each device type. */
-VS_FOREACH_IFACE(DECL_CLEANUP_FUNC)
+HWE_FOREACH_IFACE(DECL_CLEANUP_FUNC)
 
 /*! Array of pointers to various initialization functions
    that must be called at load time. */
 static int (* const init_funcs[])(void) = {
-	VS_FOREACH_IFACE(INIT_FUNC_PTR)
-	vs_init_sysfs,
+	HWE_FOREACH_IFACE(INIT_FUNC_PTR)
+	hwe_init_sysfs,
 };
 
 /*! Array of pointers to various clean-up functions
    that must be called at unload time. The functions
    must be called in reverse order! */
 static void (* const cleanup_funcs[])(void) = {
-	VS_FOREACH_IFACE(CLEANUP_FUNC_PTR)
-	vs_cleanup_sysfs,
+	HWE_FOREACH_IFACE(CLEANUP_FUNC_PTR)
+	hwe_cleanup_sysfs,
 };
 
 #undef INIT_FUNC
@@ -47,7 +47,7 @@ static bool log_requests = false;
 static bool log_responses = false;
 
 /*! Write request to kernel log */
-void vs_log_request(enum VS_IFACE iface, long dev_num,
+void hwe_log_request(enum HWE_IFACE iface, long dev_num,
 	const void * request, size_t req_size, bool have_response)
 {
 	if (!log_requests)
@@ -61,7 +61,7 @@ void vs_log_request(enum VS_IFACE iface, long dev_num,
 }
 
 /*! Write response to kernel log */
-void vs_log_response(enum VS_IFACE iface, long dev_num,
+void hwe_log_response(enum HWE_IFACE iface, long dev_num,
 	const void * response, size_t resp_size)
 {
 	if (!log_responses)
@@ -73,7 +73,7 @@ void vs_log_response(enum VS_IFACE iface, long dev_num,
 	print_hex_dump(KERN_INFO, "", 0, 16, 1, response, resp_size, false);
 }
 
-static int __init vcpsim_init(void)
+static int __init hwemu_init(void)
 {
 	int err;
 	int i;
@@ -93,7 +93,7 @@ err_init_funcs:
 	return err;
 }
 
-static void __exit vcpsim_exit(void) {
+static void __exit hwemu_exit(void) {
 	int i;
 
 	for (i = ARRAY_SIZE(cleanup_funcs) - 1; i >= 0; i--)
@@ -102,8 +102,8 @@ static void __exit vcpsim_exit(void) {
 	pr_info("unloaded\n");
 }
 
-module_init(vcpsim_init);
-module_exit(vcpsim_exit);
+module_init(hwemu_init);
+module_exit(hwemu_exit);
 
 MODULE_LICENSE("GPL");
 

@@ -8,7 +8,7 @@
 
 #include "kernel_utils.h"
 
-#include <vcpsim.h>
+#include <hwemu.h>
 
 #define streq(s1, s2) (strcmp((s1), (s2)) == 0)
 
@@ -18,16 +18,16 @@ static int rnd(int min, int max)
 	return min + rand() / (RAND_MAX / (max - min + 1) + 1);
 }
 
-static void create_random_pair(struct vs_pair * pair)
+static void create_random_pair(struct hwe_pair * pair)
 {
 	int i;
 
-	pair->req_size = rnd(1, VS_MAX_REQUEST);
+	pair->req_size = rnd(1, HWE_MAX_REQUEST);
 
 	for (i = 0; i < pair->req_size; i++)
 		pair->req[i] = rnd(0, 255);
 
-	pair->resp_size = rnd(1, VS_MAX_RESPONSE);
+	pair->resp_size = rnd(1, HWE_MAX_RESPONSE);
 
 	for (i = 0; i < pair->resp_size; i++)
 		pair->resp[i] = rnd(0, 255);
@@ -42,8 +42,8 @@ static int test(int count)
 
 	for (i = 0; i < count && ok; i++) {
 		const char * err;
-		struct vs_pair p1;
-		struct vs_pair p2;
+		struct hwe_pair p1;
+		struct hwe_pair p2;
 		const char * ps1;
 
 		/* pair1 -> str1 -> pair2 -> str2 -> strcmp(str1, str2) */
@@ -86,7 +86,7 @@ static int test(int count)
 
 static int check_pair(const char * pair_str)
 {
-	struct vs_pair p;
+	struct hwe_pair p;
 	const char * err;
 
 

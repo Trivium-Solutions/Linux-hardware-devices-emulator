@@ -8,27 +8,27 @@
 #	include <kernel_utils.h>
 #endif
 
-#include "vcpsim.h"
+#include "hwemu.h"
 
 /*! Returns a string with the name of iface. */
-const char * iface_to_str(enum VS_IFACE iface)
+const char * iface_to_str(enum HWE_IFACE iface)
 {
 	switch (iface) {
-#define DO_CASE(__upper, __lower) case VS_##__upper: return #__lower;
-		VS_FOREACH_IFACE(DO_CASE)
+#define DO_CASE(__upper, __lower) case HWE_##__upper: return #__lower;
+		HWE_FOREACH_IFACE(DO_CASE)
 #undef DO_CASE
 		default: return "unknown";
 	}
 }
 
-int str_to_iface(const char * str, enum VS_IFACE * iface)
+int str_to_iface(const char * str, enum HWE_IFACE * iface)
 {
 #define CHECK(__upper, __lower) \
 	if (strcmp(str, #__upper) == 0 || strcmp(str, #__lower) == 0) { \
-		if (iface) *iface = VS_##__upper; \
+		if (iface) *iface = HWE_##__upper; \
 	} else
 
-	VS_FOREACH_IFACE(CHECK)
+	HWE_FOREACH_IFACE(CHECK)
 		return 0;
 #undef CHECK
 	return 1;
@@ -36,7 +36,7 @@ int str_to_iface(const char * str, enum VS_IFACE * iface)
 
 /*! Key-value string parser
  */
-const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pair)
+const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pair)
 {
 	const char * s = str;
 	char * e;
@@ -55,7 +55,7 @@ const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pai
 	if (!sz)
 		return "empty request";
 
-	if (sz > VS_MAX_REQUEST * 2)
+	if (sz > HWE_MAX_REQUEST * 2)
 		return "request string too long";
 
 	if (sz & 1)
@@ -80,7 +80,7 @@ const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pai
 	if (!sz)
 		return "empty response";
 
-	if (sz > VS_MAX_RESPONSE * 2)
+	if (sz > HWE_MAX_RESPONSE * 2)
 		return "response string too long";
 
 	if (sz & 1)
@@ -96,16 +96,16 @@ const char * str_to_pair(const char * str, size_t str_size, struct vs_pair * pai
 
 /*! Key-value string maker
  */
-const char * pair_to_str(struct vs_pair * pair)
+const char * pair_to_str(struct hwe_pair * pair)
 {
 	/* each hex digit takes 2 chars + '=' + terminating null */
-	static char buf[VS_MAX_REQUEST * 2 + VS_MAX_RESPONSE * 2 + 1 + 1];
+	static char buf[HWE_MAX_REQUEST * 2 + HWE_MAX_RESPONSE * 2 + 1 + 1];
 	char * p = buf;
 
-	if (pair->req_size < 1 || pair->req_size > VS_MAX_REQUEST)
+	if (pair->req_size < 1 || pair->req_size > HWE_MAX_REQUEST)
 		return "error: request size out of valid range";
 
-	if (pair->resp_size < 1 || pair->resp_size > VS_MAX_RESPONSE)
+	if (pair->resp_size < 1 || pair->resp_size > HWE_MAX_RESPONSE)
 		return "error: response size out of valid range";
 
 	p = bin2hex(p, pair->req, pair->req_size);
@@ -119,9 +119,9 @@ const char * pair_to_str(struct vs_pair * pair)
 	return buf;
 }
 
-struct vs_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size)
+struct hwe_pair * find_pair(struct list_head * list, const unsigned char * request, size_t req_size)
 {
-	struct vs_pair * ret;
+	struct hwe_pair * ret;
 
 	list_for_each_entry (ret, list, entry) {
 		if (ret->req_size == req_size &&
@@ -132,9 +132,9 @@ struct vs_pair * find_pair(struct list_head * list, const unsigned char * reques
 	return NULL;
 }
 
-struct vs_pair * get_pair_at_index(struct list_head * list, size_t index)
+struct hwe_pair * get_pair_at_index(struct list_head * list, size_t index)
 {
-	struct vs_pair * ret;
+	struct hwe_pair * ret;
 
 	list_for_each_entry (ret, list, entry) {
 		if (index == ret->index)

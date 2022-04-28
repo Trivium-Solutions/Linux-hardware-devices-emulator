@@ -34,8 +34,8 @@ This will install building tools and Linux headers. Next, you should
 download the emulator code and launch the building process:
 
 ```
-$ git clone https://github.com/Trivium-Solutions/emulator vcpsim
-$ cd vcpsim/kernel
+$ git clone https://github.com/Trivium-Solutions/emulator hwemu
+$ cd hwemu/kernel
 $ make
 ```
 
@@ -44,7 +44,7 @@ work. Now you can load a test configuration using the control utility:
 
 ```
 $ cd ../control
-$ sudo ./vcpctl start ../tests/test.ini
+$ sudo ./hwectl start ../tests/test.ini
 Available devices:
 ------------------
 i2c0 as /dev/i2c-1
@@ -54,6 +54,8 @@ tty0 as /dev/ttyUSB0
 Note that the control utility printed a list of emulated devices
 accessible from user space. The numbers in the /dev-names may be
 different on your machine since they depend on your hardware.
+
+<!--
 
 Below is an example of the `VcpSdkCmd` utility interacting with the
 emulated TTY device `/dev/ttyUSB0`. The device number `0` is specified
@@ -86,16 +88,18 @@ VCP code: 00000000 (OK)
 Value: D050230600000102
 ```
 
+-->
+
 To stop emulation and unload the kernel module, use the `stop` command:
 
 ```
-$ sudo ./vcpctl stop
+$ sudo ./hwectl stop
 ```
 
 To get a list of available commands, run:
 
 ```
-$ ./vcpctl help
+$ ./hwectl help
 ```
 
 ## Configuration syntax

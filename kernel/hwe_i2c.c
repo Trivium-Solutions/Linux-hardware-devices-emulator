@@ -4,7 +4,7 @@
 #include <linux/i2c.h>
 #include <linux/printk.h>
 
-#include "vcpsim.h"
+#include "hwemu.h"
 
 #define I2C_CHIP_SIZE	256
 
@@ -13,24 +13,24 @@
 	 I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA | \
 	 I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA)
 
-struct vs_chip {
+struct hwe_chip {
 	u8 pos;
 	u8 dat[I2C_CHIP_SIZE];
 };
 
-struct vs_dev_priv {
+struct hwe_dev_priv {
 	bool in_use;
-	struct vs_dev * vsdev;
+	struct hwe_dev * hwedev;
 	struct i2c_adapter adapter;
 	long index;
-	u8 resp[VS_MAX_RESPONSE];
+	u8 resp[HWE_MAX_RESPONSE];
 	u8 * resp_ptr;
 	size_t resp_size;
-	struct vs_chip chip;
+	struct hwe_chip chip;
 	struct list_head devices;
 };
 
-#define to_priv(adap) container_of(adap, struct vs_dev_priv, adapter)
+#define to_priv(adap) container_of(adap, struct hwe_dev_priv, adapter)
 
 static struct list_head devices;
 
@@ -38,7 +38,7 @@ static struct list_head devices;
 
 static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
 {
-	struct vs_dev_priv * dev = to_priv(adap);
+	struct hwe_dev_priv * dev = to_priv(adap);
 	int err = num;
 	int i;
 
@@ -58,7 +58,7 @@ static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int 
 				dev->resp_size -= sz;
 				dev->resp_ptr += sz;
 
-				vs_log_response(VS_I2C, dev->index, m->buf, m->len);
+				hwe_log_response(HWE_I2C, dev->index, m->buf, m->len);
 			}
 			else {
 				dev_dbg_ratelimited(&adap->dev, "attempt to read %d byte(s)\n", m->len);
@@ -68,9 +68,9 @@ static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int 
 		}
 		else {
 			/* writing */
-			struct vs_pair * pair;
+			struct hwe_pair * pair;
 
-			pair = find_response(dev->vsdev, m->buf, m->len);
+			pair = find_response(dev->hwedev, m->buf, m->len);
 
 			if (dev->resp_size)
 				dev_err_ratelimited(&adap->dev, "new request arrived "
@@ -85,16 +85,16 @@ static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int 
 			else
 				dev->resp_size = 0;
 
-			vs_log_request(VS_I2C, dev->index, m->buf, m->len, !!pair);
+			hwe_log_request(HWE_I2C, dev->index, m->buf, m->len, !!pair);
 		}
 	}
 
 	return err;
 }
 
-static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
+static int hwei2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int num)
 {
-	struct vs_dev_priv * dev = to_priv(adap);
+	struct hwe_dev_priv * dev = to_priv(adap);
 	int err = -NODEV_ERROR;
 
 	/* If the transfer happens while the device is being removed,
@@ -103,11 +103,11 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 	 * we mark the device as unused before removal and handle
 	 * the transfer only if the device is in use. */
 	if (dev->in_use) {
-		lock_iface_devs(VS_I2C);
+		lock_iface_devs(HWE_I2C);
 
 		err = do_master_xfer(adap, msgs, num);
 
-		unlock_iface_devs(VS_I2C);
+		unlock_iface_devs(HWE_I2C);
 	}
 
 	return err;
@@ -116,8 +116,8 @@ static int vcpi2c_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, 
 static int do_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
 	char read_write, u8 command, int size, union i2c_smbus_data *data)
 {
-	struct vs_dev_priv * dev = to_priv(adap);
-	struct vs_chip * chip = &dev->chip;
+	struct hwe_dev_priv * dev = to_priv(adap);
+	struct hwe_chip * chip = &dev->chip;
 	s32 err = 0;
 	int i, len;
 
@@ -238,42 +238,42 @@ static int do_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short fla
 	return err;
 }
 
-static int vcpi2c_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
+static int hwei2c_smbus_xfer(struct i2c_adapter * adap, u16 addr, unsigned short flags,
 	char read_write, u8 command, int size, union i2c_smbus_data *data)
 {
-	struct vs_dev_priv * dev = to_priv(adap);
+	struct hwe_dev_priv * dev = to_priv(adap);
 	int err = -NODEV_ERROR;
 
 	if (dev->in_use) {
-		lock_iface_devs(VS_I2C);
+		lock_iface_devs(HWE_I2C);
 
 		err = do_smbus_xfer(adap, addr, flags, read_write,
 			command, size, data);
 
-		unlock_iface_devs(VS_I2C);
+		unlock_iface_devs(HWE_I2C);
 	}
 
 	return err;
 }
 
-static u32 vcpi2c_func(struct i2c_adapter * adapter)
+static u32 hwei2c_func(struct i2c_adapter * adapter)
 {
 	return I2C_FUNCTIONALITY;
 }
 
 static const struct i2c_algorithm smbus_algorithm = {
 	/* VcpSdkCmd */
-	.master_xfer	= vcpi2c_master_xfer,
+	.master_xfer	= hwei2c_master_xfer,
 	/* i2c-tools*/
-	.smbus_xfer	= vcpi2c_smbus_xfer,
-	.functionality	= vcpi2c_func,
+	.smbus_xfer	= hwei2c_smbus_xfer,
+	.functionality	= hwei2c_func,
 };
 
-static void init_dev(struct vs_dev_priv * dev, struct vs_dev * vsdev,
+static void init_dev(struct hwe_dev_priv * dev, struct hwe_dev * hwedev,
 	long index)
 {
 	dev->in_use = true;
-	dev->vsdev = vsdev;
+	dev->hwedev = hwedev;
 	dev->index = index;
 	dev->resp_size = 0;
 	memset(&dev->chip, 0, sizeof(dev->chip));
@@ -281,12 +281,12 @@ static void init_dev(struct vs_dev_priv * dev, struct vs_dev * vsdev,
 	dev->adapter.class = I2C_CLASS_HWMON | I2C_CLASS_SPD;
 	dev->adapter.algo = &smbus_algorithm;
 	snprintf(dev->adapter.name,  sizeof(dev->adapter.name),
-		"vcpsim i2c adapter %ld", index);
+		"hwemu i2c adapter %ld", index);
 }
 
-static struct vs_dev_priv * find_unused_dev(void)
+static struct hwe_dev_priv * find_unused_dev(void)
 {
-	struct vs_dev_priv * dev;
+	struct hwe_dev_priv * dev;
 
 	list_for_each_entry (dev, &devices, devices)
 		if (!dev->in_use)
@@ -294,15 +294,15 @@ static struct vs_dev_priv * find_unused_dev(void)
 	return NULL;
 }
 
-static struct vs_dev_priv * alloc_dev(struct vs_dev * vsdev, long index)
+static struct hwe_dev_priv * alloc_dev(struct hwe_dev * hwedev, long index)
 {
-	struct vs_dev_priv * ret = find_unused_dev();
+	struct hwe_dev_priv * ret = find_unused_dev();
 	bool is_new = !ret;
 
 	if (is_new && !(ret = kzalloc(sizeof(*ret), GFP_KERNEL)))
 		return ret;
 
-	init_dev(ret, vsdev, index);
+	init_dev(ret, hwedev, index);
 
 	if (is_new)
 		list_add(&ret->devices, &devices);
@@ -310,29 +310,29 @@ static struct vs_dev_priv * alloc_dev(struct vs_dev * vsdev, long index)
 	return ret;
 }
 
-static void del_dev(struct vs_dev_priv * dev)
+static void del_dev(struct hwe_dev_priv * dev)
 {
 	list_del(&dev->devices);
 	kfree(dev);
 }
 
-struct vs_dev_priv * vs_create_i2c_device(struct vs_dev * vsdev, long index)
+struct hwe_dev_priv * hwe_create_i2c_device(struct hwe_dev * hwedev, long index)
 {
-	struct vs_dev_priv * dev;
+	struct hwe_dev_priv * dev;
 	int err;
 
-	if (index < 0 || index >= VS_MAX_DEVICES)
+	if (index < 0 || index >= HWE_MAX_DEVICES)
 		/* can't happen? */
 		pr_err("%s%ld: device not created; index out of range!",
-			iface_to_str(VS_I2C), index);
+			iface_to_str(HWE_I2C), index);
 	else
-	if (!(dev = alloc_dev(vsdev, index)))
+	if (!(dev = alloc_dev(hwedev, index)))
 		pr_err("%s%ld: device not created; out of memory!",
-			iface_to_str(VS_I2C), index);
+			iface_to_str(HWE_I2C), index);
 	else
 	if (!!(err = i2c_add_adapter(&dev->adapter))) {
 		pr_err("%s%ld: i2c_add_adapter() failed (error code %d)",
-			iface_to_str(VS_I2C), index, err);
+			iface_to_str(HWE_I2C), index, err);
 		del_dev(dev);
 		dev = NULL;
 	}
@@ -340,7 +340,7 @@ struct vs_dev_priv * vs_create_i2c_device(struct vs_dev * vsdev, long index)
 	return dev;
 }
 
-void vs_destroy_i2c_device(struct vs_dev_priv * device)
+void hwe_destroy_i2c_device(struct hwe_dev_priv * device)
 {
 
 	device->in_use = false;
@@ -348,7 +348,7 @@ void vs_destroy_i2c_device(struct vs_dev_priv * device)
 	i2c_del_adapter(&device->adapter);
 }
 
-int vs_init_i2c(void)
+int hwe_init_i2c(void)
 {
 	int err = 0;
 
@@ -361,19 +361,19 @@ int vs_init_i2c(void)
 	return err;
 }
 
-void vs_cleanup_i2c(void)
+void hwe_cleanup_i2c(void)
 {
 	struct list_head * e;
 	struct list_head * tmp;
 
 	list_for_each_safe(e, tmp, &devices) {
-		struct vs_dev_priv * dev = list_entry(e, struct vs_dev_priv, devices);
+		struct hwe_dev_priv * dev = list_entry(e, struct hwe_dev_priv, devices);
 
 		/* sanity check */
 		if (dev->in_use) {
 			pr_err("%s%ld was not destroyed before driver unload!\n",
-				iface_to_str(VS_I2C), dev->index);
-			vs_destroy_i2c_device(dev);
+				iface_to_str(HWE_I2C), dev->index);
+			hwe_destroy_i2c_device(dev);
 		}
 
 		del_dev(dev);

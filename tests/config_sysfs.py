@@ -18,25 +18,25 @@ IF_TTY = 'tty'
 
 IFACES = (IF_I2C, IF_TTY)
 
-KMOD_NAME = 'vcpsim'
+KMOD_NAME = 'hwemu'
 
 SYSFS_BASE_DIR = '/sys/kernel/' + KMOD_NAME
 
 # Maximum length of a request
-_VS_MAX_REQUEST = 64
+HWE_MAX_REQUEST = 64
 
 # Maximum length of a response
-_VS_MAX_RESPONSE = 64
+HWE_MAX_RESPONSE = 64
 
 # Minimum number of key-value pairs that can be added to a device
-_VS_MIN_PAIRS = 0
+HWE_MIN_PAIRS = 0
 
 # Maximum number of key-value pairs that can be added to a device
-_VS_MAX_PAIRS = 1000
+HWE_MAX_PAIRS = 1000
 
 
 # Maximum number of devices per interface
-_VS_MAX_DEVICES = 8
+HWE_MAX_DEVICES = 8
 
 # ----------------------------------------------------------------------
 
@@ -68,21 +68,21 @@ _used_requests = []
 def rand_pair_str():
     while True:
         # avoid pair duplicates
-        req = rand_hex_str(_VS_MAX_REQUEST)
+        req = rand_hex_str(HWE_MAX_REQUEST)
         if not req in _used_requests:
             _used_requests.append(req)
-            return req + '=' + rand_hex_str(_VS_MAX_RESPONSE)
+            return req + '=' + rand_hex_str(HWE_MAX_RESPONSE)
 
 # ----------------------------------------------------------------------
 
 def rand_pair_str_list():
-    return { i: rand_pair_str() for i in rand_range(_VS_MIN_PAIRS, _VS_MAX_PAIRS - 1) }
+    return { i: rand_pair_str() for i in rand_range(HWE_MIN_PAIRS, HWE_MAX_PAIRS - 1) }
 
 # ----------------------------------------------------------------------
 
 def rand_dev_list(pfx):
     return { '%s%d' % (pfx, i) : rand_pair_str_list() for i in \
-        rand_range(1, _VS_MAX_DEVICES) }
+        rand_range(1, HWE_MAX_DEVICES) }
 
 # ----------------------------------------------------------------------
 
@@ -290,7 +290,7 @@ _TTY_DEV_SYMLINKS = True
 # XXX name of the tty device VcpSdkCmd uses
 VcpSdkCmd_TTY_NAME = '/dev/ttyUSB'
 
-VCPSIM_TTY_NAME = '/dev/ttyVCP'
+HWEMU_TTY_NAME = '/dev/ttyHWE'
 
 def ifaces_init(config):
 
@@ -335,8 +335,8 @@ def ifaces_init(config):
     ifc = IF_TTY
 
     n = 0
-    for df in sorted(glob.glob(VCPSIM_TTY_NAME + '*'), key = lambda d: int(d[len(VCPSIM_TTY_NAME):])):
-        dev_num = df[len(VCPSIM_TTY_NAME):]
+    for df in sorted(glob.glob(HWEMU_TTY_NAME + '*'), key = lambda d: int(d[len(HWEMU_TTY_NAME):])):
+        dev_num = df[len(HWEMU_TTY_NAME):]
         if _TTY_DEV_SYMLINKS:
             while True:
                 lnk = VcpSdkCmd_TTY_NAME + str(n)
@@ -367,7 +367,7 @@ def ifaces_cleanup():
         for lnk in glob.glob(VcpSdkCmd_TTY_NAME + '*'):
             if os.path.islink(lnk):
                 fn = os.path.realpath(lnk)
-                if VCPSIM_TTY_NAME in fn:
+                if HWEMU_TTY_NAME in fn:
                     os.remove(lnk)
 
 # ----------------------------------------------------------------------
@@ -398,7 +398,7 @@ def test_random_config_write():
     if os.geteuid() != 0:
         sys.exit('You must be root to run this script')
 
-    if is_module_loaded('vcpsim'):
+    if is_module_loaded(KMOD_NAME):
         # The kernel module is already loaded. We will reload it
         # to ensure the purity of the experiment.
         run(['rmmod', KMOD_NAME])

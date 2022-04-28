@@ -8,86 +8,86 @@
 #include <linux/version.h>
 #include <linux/bitmap.h>
 
-#include "vcpsim.h"
+#include "hwemu.h"
 
 /* Comment this in, if you want to have individual pair operations
  * (add/delete/etc) logged in debug mode. */
 //#define LOG_PAIRS 1
 
-struct vs_iface {
+struct hwe_iface {
 	struct kobject kobj;
 	struct list_head dev_list;
 	struct mutex dev_mutex;
-	DECLARE_BITMAP(dev_indexes, VS_MAX_DEVICES);
+	DECLARE_BITMAP(dev_indexes, HWE_MAX_DEVICES);
 };
 
-#define to_iface(p) container_of(p, struct vs_iface, kobj)
+#define to_iface(p) container_of(p, struct hwe_iface, kobj)
 
 struct iface_attribute {
 	struct attribute attr;
-	ssize_t (*show)(struct vs_iface * iface,
+	ssize_t (*show)(struct hwe_iface * iface,
 		struct iface_attribute * attr, char * buf);
-	ssize_t (*store)(struct vs_iface * iface,
+	ssize_t (*store)(struct hwe_iface * iface,
 		struct iface_attribute * attr, const char * buf, size_t count);
 };
 
 #define to_iface_attr(p) container_of(p, struct iface_attribute, attr)
 
-struct vs_dev {
+struct hwe_dev {
 	struct kobject kobj;
 	struct list_head entry;
 	struct list_head pair_list;
-	enum VS_IFACE iface;
+	enum HWE_IFACE iface;
 	long index;
-	struct vs_dev_priv * device;
+	struct hwe_dev_priv * device;
 	struct kobject * pairs_kobj;
-	DECLARE_BITMAP(pairs_indexes, VS_MAX_PAIRS);
+	DECLARE_BITMAP(pairs_indexes, HWE_MAX_PAIRS);
 };
 
-#define to_dev(p) container_of(p, struct vs_dev, kobj)
+#define to_dev(p) container_of(p, struct hwe_dev, kobj)
 
 struct dev_attribute {
 	struct attribute attr;
-	ssize_t (*show)(struct vs_dev * dev,
+	ssize_t (*show)(struct hwe_dev * dev,
 		struct dev_attribute * attr, char * buf);
-	ssize_t (*store)(struct vs_dev * dev,
+	ssize_t (*store)(struct hwe_dev * dev,
 		struct dev_attribute * attr, const char * buf, size_t count);
 };
 
 #define to_dev_attr(p) container_of(p, struct dev_attribute, attr)
 
-struct vs_dev_ops {
-	struct vs_dev_priv * (*create)(struct vs_dev * dev, long index);
-	void (*destroy)(struct vs_dev_priv * device);
+struct hwe_dev_ops {
+	struct hwe_dev_priv * (*create)(struct hwe_dev * dev, long index);
+	void (*destroy)(struct hwe_dev_priv * device);
 };
 
 /* Prototypes for our internal device operations. */
 #define DECL_DEVOP(__upper, __lower) \
-	extern struct vs_dev_priv * vs_create_##__lower##_device(struct vs_dev * dev, long index); \
-	extern void vs_destroy_##__lower##_device(struct vs_dev_priv * device); \
+	extern struct hwe_dev_priv * hwe_create_##__lower##_device(struct hwe_dev * dev, long index); \
+	extern void hwe_destroy_##__lower##_device(struct hwe_dev_priv * device); \
 
-VS_FOREACH_IFACE(DECL_DEVOP)
+HWE_FOREACH_IFACE(DECL_DEVOP)
 
 #undef DECL_DEVOP
 
 /* Internal device operations. */
 #define DEVOP(__upper, __lower) { \
-	.create = vs_create_##__lower##_device, \
-	.destroy = vs_destroy_##__lower##_device, \
+	.create = hwe_create_##__lower##_device, \
+	.destroy = hwe_destroy_##__lower##_device, \
 },
 
-static const struct vs_dev_ops dev_ops[] = {
-	VS_FOREACH_IFACE(DEVOP)
+static const struct hwe_dev_ops dev_ops[] = {
+	HWE_FOREACH_IFACE(DEVOP)
 };
 
 #undef DEVOP
 
 static struct kset * base_kset;
-static struct vs_iface ifaces[VS_IFACE_COUNT];
+static struct hwe_iface ifaces[HWE_IFACE_COUNT];
 
 static ssize_t iface_attr_show(struct kobject * kobj, struct attribute * attr, char *buf)
 {
-	struct vs_iface * ifc = to_iface(kobj);
+	struct hwe_iface * ifc = to_iface(kobj);
 	struct iface_attribute * a = to_iface_attr(attr);
 
 	if (a->show)
@@ -99,7 +99,7 @@ static ssize_t iface_attr_show(struct kobject * kobj, struct attribute * attr, c
 static ssize_t iface_attr_store(struct kobject * kobj,
 	struct attribute * attr, const char * buf, size_t len)
 {
-	struct vs_iface * ifc = to_iface(kobj);
+	struct hwe_iface * ifc = to_iface(kobj);
 	struct iface_attribute * a = to_iface_attr(attr);
 
 	if (a->store)
@@ -116,64 +116,64 @@ static const struct sysfs_ops iface_sysfs_ops = {
 /*
 // Stubs for the interface attributes.
 
-static ssize_t iface_show(struct vs_iface * iface,
+static ssize_t iface_show(struct hwe_iface * iface,
 	struct iface_attribute * attr, char * buf)
 {
 	return sprintf(buf, "%s/%s\n", kobject_name(&iface->kobj), attr->attr.name);
 }
 
-static ssize_t iface_store(struct vs_iface * iface,
+static ssize_t iface_store(struct hwe_iface * iface,
 	struct iface_attribute * attr, const char * buf, size_t count)
 {
 	return count;
 }
 */
 
-static inline long find_free_dev_index(enum VS_IFACE iface)
+static inline long find_free_dev_index(enum HWE_IFACE iface)
 {
-	long ret = find_first_zero_bit(ifaces[iface].dev_indexes, VS_MAX_DEVICES);
+	long ret = find_first_zero_bit(ifaces[iface].dev_indexes, HWE_MAX_DEVICES);
 
-	if (ret == VS_MAX_DEVICES)
+	if (ret == HWE_MAX_DEVICES)
 		ret = -1;
 
 	return ret;
 }
 
-static inline void take_dev_index(enum VS_IFACE iface, long index)
+static inline void take_dev_index(enum HWE_IFACE iface, long index)
 {
 	if (index >= 0)
 		set_bit(index, ifaces[iface].dev_indexes);
 }
 
-static inline void put_dev_index(enum VS_IFACE iface, long index)
+static inline void put_dev_index(enum HWE_IFACE iface, long index)
 {
 	if (index >= 0)
 		clear_bit(index, ifaces[iface].dev_indexes);
 }
 
-void lock_iface_devs(enum VS_IFACE iface)
+void lock_iface_devs(enum HWE_IFACE iface)
 {
 	mutex_lock(&ifaces[iface].dev_mutex);
 }
 
-void unlock_iface_devs(enum VS_IFACE iface)
+void unlock_iface_devs(enum HWE_IFACE iface)
 {
 	mutex_unlock(&ifaces[iface].dev_mutex);
 }
 
-void lock_devs(struct vs_dev * dev)
+void lock_devs(struct hwe_dev * dev)
 {
 	lock_iface_devs(dev->iface);
 }
 
-void unlock_devs(struct vs_dev * dev)
+void unlock_devs(struct hwe_dev * dev)
 {
 	unlock_iface_devs(dev->iface);
 }
 
-static struct vs_dev * add_dev(enum VS_IFACE iface, long index)
+static struct hwe_dev * add_dev(enum HWE_IFACE iface, long index)
 {
-	struct vs_dev * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
+	struct hwe_dev * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
 
 	if (ret) {
 		ret->iface = iface;
@@ -188,7 +188,7 @@ static struct vs_dev * add_dev(enum VS_IFACE iface, long index)
 	return ret;
 }
 
-static void del_dev(struct vs_dev * dev)
+static void del_dev(struct hwe_dev * dev)
 {
 	list_del(&dev->entry);
 
@@ -197,9 +197,9 @@ static void del_dev(struct vs_dev * dev)
 	kfree(dev);
 }
 
-static void clear_pairs(struct vs_dev * dev);
+static void clear_pairs(struct hwe_dev * dev);
 
-static void shutdown_dev(struct vs_dev * dev)
+static void shutdown_dev(struct hwe_dev * dev)
 {
 	/* assume that we may be shutting down
 	 * a partially initialized device */
@@ -220,10 +220,10 @@ static void shutdown_dev(struct vs_dev * dev)
 /* forward declaration */
 static struct kobj_type dev_ktype;
 
-static struct vs_dev * new_dev(enum VS_IFACE iface) {
-	struct vs_iface * ifc = &ifaces[iface];
+static struct hwe_dev * new_dev(enum HWE_IFACE iface) {
+	struct hwe_iface * ifc = &ifaces[iface];
 	long idx = find_free_dev_index(iface);
-	struct vs_dev * ret = NULL;
+	struct hwe_dev * ret = NULL;
 	int err;
 
 	/* format of directory name: <interface name> <index>, eg tty0 */
@@ -266,14 +266,14 @@ static struct vs_dev * new_dev(enum VS_IFACE iface) {
 	return ret;
 }
 
-static ssize_t iface_add_store(struct vs_iface * iface,
+static ssize_t iface_add_store(struct hwe_iface * iface,
 	struct iface_attribute * attr, const char * buf, size_t count)
 {
 	int ret = -EIO;
 	const char * iface_name = kobject_name(&iface->kobj);
 	const char * filename = attr->attr.name;
-	enum VS_IFACE ifc;
-	struct vs_dev * dev;
+	enum HWE_IFACE ifc;
+	struct hwe_dev * dev;
 
 	if (count == 0)
 		pr_err("%s/%s: empty write data\n",
@@ -321,9 +321,9 @@ static inline int copy_word(const char * src, size_t src_len, char * dst, size_t
 	return s - dst;
 }
 
-static struct vs_dev * find_device(enum VS_IFACE iface, const char * name)
+static struct hwe_dev * find_device(enum HWE_IFACE iface, const char * name)
 {
-	struct vs_dev * dev;
+	struct hwe_dev * dev;
 	struct list_head * dev_list = &ifaces[iface].dev_list;
 
 	list_for_each_entry (dev, dev_list, entry)
@@ -333,15 +333,15 @@ static struct vs_dev * find_device(enum VS_IFACE iface, const char * name)
 	return NULL;
 }
 
-static ssize_t iface_uninstall_store(struct vs_iface * iface,
+static ssize_t iface_uninstall_store(struct hwe_iface * iface,
 	struct iface_attribute * attr, const char * buf, size_t count)
 {
 	int ret = -EINVAL;
 	const char * iface_name = kobject_name(&iface->kobj);
 	const char * filename = attr->attr.name;
-	enum VS_IFACE ifc;
+	enum HWE_IFACE ifc;
 	char dev_name[16];
-	struct vs_dev * dev;
+	struct hwe_dev * dev;
 
 	if (count == 0)
 		pr_err("%s/%s: empty write data\n",
@@ -421,7 +421,7 @@ static struct kobj_type iface_ktype = {
 static ssize_t dev_attr_show(struct kobject * kobj,
 	struct attribute * attr, char *buf)
 {
-	struct vs_dev * d = to_dev(kobj);
+	struct hwe_dev * d = to_dev(kobj);
 	struct dev_attribute * a = to_dev_attr(attr);
 
 	if (a->show)
@@ -433,7 +433,7 @@ static ssize_t dev_attr_show(struct kobject * kobj,
 static ssize_t dev_attr_store(struct kobject * kobj,
 	struct attribute * attr, const char * buf, size_t len)
 {
-	struct vs_dev * d = to_dev(kobj);
+	struct hwe_dev * d = to_dev(kobj);
 	struct dev_attribute * a = to_dev_attr(attr);
 
 	if (a->store)
@@ -447,7 +447,7 @@ static const struct sysfs_ops dev_sysfs_ops = {
 	.store = dev_attr_store,
 };
 
-static void pair_delete(struct vs_pair * pair)
+static void pair_delete(struct hwe_pair * pair)
 {
 #ifdef LOG_PAIRS
 	pr_debug("%s: deleting pair %ld\n",
@@ -462,16 +462,16 @@ static void pair_delete(struct vs_pair * pair)
 	kfree(pair);
 }
 
-static void clear_pairs(struct vs_dev * dev)
+static void clear_pairs(struct hwe_dev * dev)
 {
 	struct list_head * e;
 	struct list_head * tmp;
 
 	list_for_each_safe(e, tmp, &dev->pair_list)
-		pair_delete(list_entry(e, struct vs_pair, entry));
+		pair_delete(list_entry(e, struct hwe_pair, entry));
 }
 
-struct vs_pair * find_response(struct vs_dev * dev,
+struct hwe_pair * find_response(struct hwe_dev * dev,
 	const unsigned char * request, int req_size)
 {
 	return find_pair(&dev->pair_list, request, req_size);
@@ -479,7 +479,7 @@ struct vs_pair * find_response(struct vs_dev * dev,
 
 static void dev_release(struct kobject *kobj)
 {
-	struct vs_dev * dev = to_dev(kobj);
+	struct hwe_dev * dev = to_dev(kobj);
 
 	pr_debug("%s: releasing device\n", kobject_name(kobj));
 
@@ -491,24 +491,24 @@ static void dev_release(struct kobject *kobj)
 /*
 // Stubs for the device attributes.
 
-static ssize_t dev_show(struct vs_dev * dev,
+static ssize_t dev_show(struct hwe_dev * dev,
 	struct dev_attribute * attr, char * buf)
 {
 	return sprintf(buf, "%s/%s\n", kobject_name(&dev->kobj), attr->attr.name);
 }
 
 
-static ssize_t dev_store(struct vs_dev * dev,
+static ssize_t dev_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	return count;
 }
 */
 
-static ssize_t dev_count_show(struct vs_dev * dev,
+static ssize_t dev_count_show(struct hwe_dev * dev,
 	struct dev_attribute * attr, char * buf)
 {
-	return sprintf(buf, "%d", bitmap_weight(dev->pairs_indexes, VS_MAX_PAIRS));
+	return sprintf(buf, "%d", bitmap_weight(dev->pairs_indexes, HWE_MAX_PAIRS));
 }
 
 static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
@@ -516,9 +516,9 @@ static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char
 	const char * iface_name = kobj->parent->parent->name;
 	const char * dev_name = kobj->parent->name;
 	const char * filename = attr->attr.name;
-	enum VS_IFACE iface;
-	struct vs_dev * dev;
-	struct vs_pair * pair;
+	enum HWE_IFACE iface;
+	struct hwe_dev * dev;
+	struct hwe_pair * pair;
 	long idx;
 	ssize_t ret;
 
@@ -552,15 +552,15 @@ static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char
 	return sprintf(buf, "ERROR: pair with index %ld not found!", idx);
 }
 
-static ssize_t dev_add_store(struct vs_dev * dev,
+static ssize_t dev_add_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	ssize_t ret = -EINVAL;
 	const char * dev_name = kobject_name(&dev->kobj);
 	const char * filename = attr->attr.name;
 	const char * err;
-	struct vs_pair pair;
-	struct vs_pair * p;
+	struct hwe_pair pair;
+	struct hwe_pair * p;
 	long idx;
 
 	lock_devs(dev);
@@ -571,8 +571,8 @@ static ssize_t dev_add_store(struct vs_dev * dev,
 		pr_err("%s/%s: invalid request-response string: %s\n",
 			dev_name, filename, err);
 	else
-	if ((idx = find_first_zero_bit(dev->pairs_indexes, VS_MAX_PAIRS))
-	     == VS_MAX_PAIRS)
+	if ((idx = find_first_zero_bit(dev->pairs_indexes, HWE_MAX_PAIRS))
+	     == HWE_MAX_PAIRS)
 		pr_err("%s/%s: too many request-response pairs\n",
 			dev_name, filename);
 	else
@@ -619,13 +619,13 @@ static ssize_t dev_add_store(struct vs_dev * dev,
 	return ret;
 }
 
-static ssize_t dev_delete_store(struct vs_dev * dev,
+static ssize_t dev_delete_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	ssize_t ret = -EINVAL;
 	const char * dev_name = kobject_name(&dev->kobj);
 	const char * filename = attr->attr.name;
-	struct vs_pair * pair;
+	struct hwe_pair * pair;
 	unsigned index;
 
 	lock_devs(dev);
@@ -651,7 +651,7 @@ static ssize_t dev_delete_store(struct vs_dev * dev,
 	return ret;
 }
 
-static ssize_t dev_clear_store(struct vs_dev * dev,
+static ssize_t dev_clear_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
 	if (!count)
@@ -694,14 +694,14 @@ static struct kobj_type dev_ktype = {
 };
 
 
-static int init_iface(enum VS_IFACE iface)
+static int init_iface(enum HWE_IFACE iface)
 {
-	struct vs_iface * ifc = &ifaces[iface];
+	struct hwe_iface * ifc = &ifaces[iface];
 	int err;
 
 	INIT_LIST_HEAD(&ifc->dev_list);
 
-	bitmap_zero(ifc->dev_indexes, VS_MAX_DEVICES);
+	bitmap_zero(ifc->dev_indexes, HWE_MAX_DEVICES);
 
 	mutex_init(&ifc->dev_mutex);
 
@@ -711,14 +711,14 @@ static int init_iface(enum VS_IFACE iface)
 	return err;
 }
 
-static void cleanup_iface(enum VS_IFACE iface)
+static void cleanup_iface(enum HWE_IFACE iface)
 {
-	struct vs_iface * ifc = &ifaces[iface];
+	struct hwe_iface * ifc = &ifaces[iface];
 	struct list_head * dl = &ifc->dev_list;
 
 	while (!list_empty(dl)) {
-		struct vs_dev * dev =
-			list_first_entry(dl, struct vs_dev, entry);
+		struct hwe_dev * dev =
+			list_first_entry(dl, struct hwe_dev, entry);
 
 		shutdown_dev(dev);
 	}
@@ -726,7 +726,7 @@ static void cleanup_iface(enum VS_IFACE iface)
 	kobject_put(&ifc->kobj);
 }
 
-int vs_init_sysfs(void)
+int hwe_init_sysfs(void)
 {
 	int i;
 	int err;
@@ -738,14 +738,14 @@ int vs_init_sysfs(void)
 	if (!base_kset)
 		return -ENOMEM;
 
-	for (i = 0; i < VS_IFACE_COUNT; i++) {
-		err = init_iface((enum VS_IFACE)i);
+	for (i = 0; i < HWE_IFACE_COUNT; i++) {
+		err = init_iface((enum HWE_IFACE)i);
 		if (err) {
 			pr_err("init_iface() failed\n");
 
 			/* clean up the interfaces installed so far */
 			for (i--; i >= 0; i--)
-				cleanup_iface((enum VS_IFACE)i);
+				cleanup_iface((enum HWE_IFACE)i);
 
 			return err;
 		}
@@ -755,14 +755,14 @@ int vs_init_sysfs(void)
 	return 0;
 }
 
-void vs_cleanup_sysfs(void)
+void hwe_cleanup_sysfs(void)
 {
 	int i;
 
 	pr_debug("cleaning up sysfs entries\n");
 
-	for (i = VS_IFACE_COUNT - 1; i >= 0; i--)
-		cleanup_iface((enum VS_IFACE)i);
+	for (i = HWE_IFACE_COUNT - 1; i >= 0; i--)
+		cleanup_iface((enum HWE_IFACE)i);
 
 	kset_unregister(base_kset);
 
