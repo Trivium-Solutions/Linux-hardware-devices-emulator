@@ -18,6 +18,8 @@ IF_TTY = 'tty'
 
 IFACES = (IF_I2C, IF_TTY)
 
+EXTERN_DEV_NAME_PREFIXES = { IF_I2C: 'i2c-', IF_TTY: 'ttyUSB' }
+
 KMOD_NAME = 'hwemu'
 
 SYSFS_BASE_DIR = '/sys/kernel/' + KMOD_NAME
@@ -36,6 +38,11 @@ HWE_MAX_PAIRS = 1000
 
 # Maximum number of devices per interface
 HWE_MAX_DEVICES = 256
+
+# ----------------------------------------------------------------------
+
+def throw(msg):
+    raise Exception(msg)
 
 # ----------------------------------------------------------------------
 
@@ -123,7 +130,9 @@ def traverse_config(config, *, on_iface, on_dev, on_pair):
             dev = devs[dev_name]
 
             # sort pairs by numbers
-            for pair_num in sorted(dev):
+            pair_nums = sorted((i for i in dev.keys() if isinstance(i, int)))
+
+            for pair_num in pair_nums:
                 ret = on_pair(iface_name, dev_name, pair_num, dev[pair_num])
                 if ret is not None:
                     return ret
@@ -153,12 +162,25 @@ def config_to_str(config):
 
 # ----------------------------------------------------------------------
 
-def is_dev_name(s):
+def dev_name_to_iface(s):
     for ifc in IFACES:
         if s == ifc or \
            (s.find(ifc) == 0 and s[len(ifc) - len(s):].isdigit()):
-            return True
-    return False
+            return ifc
+    return None
+
+# ----------------------------------------------------------------------
+
+def is_dev_name(s):
+    return dev_name_to_iface(s) is not None
+
+# ----------------------------------------------------------------------
+
+def extern_dev_name_to_iface(s):
+    for ifc, pfx in EXTERN_DEV_NAME_PREFIXES.items():
+        if s.startswith(pfx):
+            return ifc
+    return None
 
 # ----------------------------------------------------------------------
 
@@ -190,7 +212,7 @@ def write_file(filename, data):
     with open(filename, 'wt') as f:
         sz = f.write(data)
         if sz != len(data):
-            raise Exception('written only %d byte(s) of %d to file %s' %
+            throw('written only %d byte(s) of %d to file %s' %
                 (sz, len(data), filename))
 
 # ----------------------------------------------------------------------
@@ -283,18 +305,29 @@ def is_module_loaded(module):
 
 # ----------------------------------------------------------------------
 
-_TTY_DEV_SYMLINKS = True
-#_TTY_DEV_SYMLINKS = False
+I2C_DEV_DIR = '/sys/class/i2c-dev'
 
-# XXX name of the tty device VcpSdkCmd uses
-VcpSdkCmd_TTY_NAME = '/dev/ttyUSB'
+def i2c_get_adapter_name(dev_name):
+    return read_file('/'.join([I2C_DEV_DIR, dev_name, 'name']))
+
+# ----------------------------------------------------------------------
 
 HWEMU_TTY_NAME = '/dev/ttyHWE'
 
 def ifaces_init(config):
 
-    def print_avail(d1, d2):
-        print(d1, 'as', d2)
+    symlinks = {}
+
+    def on_dev(iface_name, dev_name):
+        nonlocal symlinks
+        lnk = config[iface_name][dev_name].get('_extern_dev_name')
+
+        if lnk is None:
+            throw('Broken config: No name for device %s' % (dev_name))
+
+        symlinks[dev_name] = { 'link': '/dev/' + lnk }
+
+    traverse_config(config, on_iface = None, on_dev = on_dev, on_pair = None)
 
     # i2c
 
@@ -306,26 +339,23 @@ def ifaces_init(config):
     if not is_module_loaded('i2c_dev'):
         run(['modprobe', 'i2c_dev'])
 
-    i2c_dev_dir = '/sys/class/i2c-dev'
     sstr = 'adapter '
-    devs = {}
-
-    print('Available devices:')
-    print('------------------')
 
     # Collect our /dev/i2c* device names from /sys/class/i2c-dev
 
-    with os.scandir(i2c_dev_dir) as it:
+    with os.scandir(I2C_DEV_DIR) as it:
         for e in it:
             if e.is_dir():
-                fstr = read_file('/'.join([i2c_dev_dir, e.name, 'name']))
+                fstr = i2c_get_adapter_name(e.name)
                 if KMOD_NAME in fstr:
                     n = fstr.find(sstr)
                     if n >= 0:
-                        devs[ifc + fstr[n + len(sstr)]] = '/dev/' + e.name
-
-    for d in sorted(devs, key = lambda d: int(d[len(ifc):])):
-        print_avail(d, devs[d])
+                        dev_num = fstr[n + len(sstr):].rstrip()
+                        dev_name = ifc + dev_num
+                        if dev_name in symlinks:
+                            symlinks[dev_name]['target'] = '/dev/' + e.name
+                        #else:
+                        #    throw('Unexpected device /dev/%s' % (e.name))
 
     # tty
 
@@ -333,41 +363,67 @@ def ifaces_init(config):
 
     ifc = IF_TTY
 
-    n = 0
     for df in sorted(glob.glob(HWEMU_TTY_NAME + '*'), key = lambda d: int(d[len(HWEMU_TTY_NAME):])):
         dev_num = df[len(HWEMU_TTY_NAME):]
-        if _TTY_DEV_SYMLINKS:
+        dev_name = ifc + dev_num
+        if dev_name in symlinks:
+            symlinks[dev_name]['target'] = df
+        #else:
+        #    throw('Unexpected device /dev/%s' % (df))
+
+    # create symlinks
+    for dev_name, d in symlinks.items():
+        lnk = d['link']
+        tgt = d.get('target')
+        if tgt is None:
+            # no device to symlink to
+            throw("Couldn't create device %s" % (lnk))
+        if lnk == tgt:
+            # We don't create a symlink, if the target has the same name.
+            # This may happen e.g. for i2c devices.
+            continue
+        if os.path.exists(lnk):
+            pfx = EXTERN_DEV_NAME_PREFIXES[dev_name_to_iface(dev_name)]
+            n = 0
             while True:
-                lnk = VcpSdkCmd_TTY_NAME + str(n)
-                if not os.path.exists(lnk):
-                    break
+                suggestion = '%s%d' % (pfx, n)
+                if not os.path.exists('/dev/' + suggestion):
+                    throw(("Can't create device '%s'\n" +
+                        "    Try to use another name, for example '%s'")
+                        % (lnk[len('/dev/'):], suggestion))
                 n += 1
-            os.symlink(df, lnk)
-            print_avail(ifc + dev_num, lnk)
-        else:
-            print_avail(ifc + dev_num, df)
+
+        os.symlink(tgt, lnk)
 
 # ----------------------------------------------------------------------
 
 def ifaces_cleanup():
+
+    import glob
 
     # i2c
 
     # Earlier on we ensured that i2c-dev was loaded and now we have
     # no way of knowing whether or not it had been loaded before. So we
     # just leave it loaded :(
+    # Besides, we assume that this function may be called in cmd_start,
+    # that is BEFORE i2c-dev is first loaded.
+
+    # remove all symlinks linking to our devices
+    for lnk in glob.glob('/dev/' + EXTERN_DEV_NAME_PREFIXES[IF_I2C]  + '*'):
+        if os.path.islink(lnk):
+            fn = os.path.realpath(lnk)
+            if fn.startswith('/dev/i2c-') and KMOD_NAME in i2c_get_adapter_name(fn[len('/dev/'):]):
+                os.remove(lnk)
 
     # tty
 
-    if _TTY_DEV_SYMLINKS:
-        import glob
-
-        # remove all symlinks linking to our devices
-        for lnk in glob.glob(VcpSdkCmd_TTY_NAME + '*'):
-            if os.path.islink(lnk):
-                fn = os.path.realpath(lnk)
-                if HWEMU_TTY_NAME in fn:
-                    os.remove(lnk)
+    # remove all symlinks linking to our devices
+    for lnk in glob.glob('/dev/' + EXTERN_DEV_NAME_PREFIXES[IF_TTY]  + '*'):
+        if os.path.islink(lnk):
+            tgt = os.path.realpath(lnk)
+            if HWEMU_TTY_NAME in tgt:
+                os.remove(lnk)
 
 # ----------------------------------------------------------------------
 
@@ -379,7 +435,7 @@ def run(args):
     err = p.stdout.read().decode().rstrip()
     if err == '':
         err = 'Command terminated with exit code %d: %s' % (p.returncode, ' '.join(args))
-    raise Exception(err)
+    throw(err)
 
 # ----------------------------------------------------------------------
 
@@ -406,9 +462,21 @@ def test_random_config_write():
 
     random.seed()
 
-    _REPEATS = 50
+    # XXX when these values are large, this test can be extremely slow
+
+    global HWE_MAX_DEVICES
+
+    if HWE_MAX_DEVICES > 16:
+        HWE_MAX_DEVICES = 16
+
+    global HWE_MAX_PAIRS
+
+    if HWE_MAX_PAIRS > 300:
+        HWE_MAX_PAIRS = 300
 
     print('WARNING: With large maximum values, creating random configs may take a VERY long time.')
+
+    _REPEATS = 50
 
     for i in range(_REPEATS):
         print('--- Test %d of %d --------------------' % (i + 1, _REPEATS))

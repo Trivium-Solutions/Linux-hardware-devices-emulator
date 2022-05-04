@@ -4,7 +4,6 @@
 '''
 import sys
 import os
-import subprocess
 import configparser
 
 PROG_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -90,74 +89,62 @@ def load_from_ini(filename):
     if len(lst) == 0:
         throw('%s: File not found' % (filename))
 
-    for s in ini.sections():
-        if not config.is_dev_name(s):
-            error('Unsupported device: %s' % (s));
-
+    dev_counts = { ifc: 0 for ifc in config.IFACES }
     cfg = {}
 
-    for ifc in config.IFACES:
-        cfg[ifc] = {}
-        dev_num = 0
-        if ini.has_section(ifc):
-            # dev0 == dev
-            if ini.has_section(ifc + '0'):
-                error('Configuration has both %s and %s0' % (ifc, ifc))
-            ini[ifc + '0'] = ini[ifc]
-            ini.remove_section(ifc)
-        while True:
-            dev_name = ifc + str(dev_num)
-            if ini.has_section(dev_name):
-                i = 0
-                pairs = {}
+    for sect in ini.sections():
+        ifc = config.extern_dev_name_to_iface(sect)
 
-                # Do some checking. The kernel module won't
-                # let a bad string pass anyway, but the error
-                # message may be a bit cryptic.
+        if ifc is None:
+            error('Invalid device name: %s' % (sect));
 
-                if dev_num == config.HWE_MAX_DEVICES:
-                    error('Too many %s devices' % (ifc))
+        if not ifc in cfg:
+            cfg[ifc] = {}
 
-                for k, v in ini[dev_name].items():
-                    k2 = convert_quoted(k)
-                    v2 = convert_quoted(v)
+        i = 0
+        pairs = { '_extern_dev_name': sect, }
 
-                    if not config.is_hex_str(k2):
-                        error('Invalid character in request: %s' % (k))
+        # Do some checking. The kernel module won't
+        # let a bad string pass anyway, but the error
+        # message may be a bit cryptic.
 
-                    if len(k2) > config.HWE_MAX_REQUEST * 2:
-                        error('Request string too long: %s' % (k))
+        if dev_counts[ifc] == config.HWE_MAX_DEVICES:
+            error('Too many %s devices' % (ifc))
 
-                    if (len(k2) & 1) != 0:
-                        error('Odd number of characters in request string: %s' % (k))
+        for k, v in ini[sect].items():
+            k2 = convert_quoted(k)
+            v2 = convert_quoted(v)
 
-                    if is_quoted(k) and k2 in ini[dev_name].keys():
-                        # quoted string has an equal byte representation
-                        error('Duplicate key: %s' % (k))
+            if not config.is_hex_str(k2):
+                error('Invalid character in request: %s' % (k))
 
-                    if len(v2) < 1:
-                        error('Empty response string for request: %s' % (k))
+            if len(k2) > config.HWE_MAX_REQUEST * 2:
+                error('Request string too long: %s' % (k))
 
-                    if not config.is_hex_str(v2):
-                        error('Invalid character in response: %s' % (v))
+            if (len(k2) & 1) != 0:
+                error('Odd number of characters in request string: %s' % (k))
 
-                    if len(v2) > config.HWE_MAX_RESPONSE * 2:
-                        error('Response string too long: %s' % (v))
+            if is_quoted(k) and k2 in ini[dev_name].keys():
+                # error: quoted string has an equal byte representation
+                error('Duplicate key: %s' % (k))
 
-                    if (len(v2) & 1) != 0:
-                        error('Odd number of characters in response string: %s' % (v))
+            if len(v2) < 1:
+                error('Empty response string for request: %s' % (k))
 
-                    pairs[i] = k2 + '=' + v2
-                    i += 1
-                cfg[ifc][dev_name] = pairs
-                ini.remove_section(dev_name)
-                dev_num += 1
-            else:
-                break
+            if not config.is_hex_str(v2):
+                error('Invalid character in response: %s' % (v))
 
-    for k in ini:
-        if k != 'DEFAULT':
-            error('Device %s has an non-consecutive number' % (k))
+            if len(v2) > config.HWE_MAX_RESPONSE * 2:
+                error('Response string too long: %s' % (v))
+
+            if (len(v2) & 1) != 0:
+                error('Odd number of characters in response string: %s' % (v))
+
+            pairs[i] = k2 + '=' + v2
+            i += 1
+
+        cfg[ifc][ifc + str(dev_counts[ifc])] = pairs
+        dev_counts[ifc] += 1
 
     return cfg
 
@@ -190,6 +177,7 @@ Commands:
 def cmd_start(filename):
     assert_root()
 
+    # we may be starting again, without a previous stopping
     if is_module_loaded():
         config.ifaces_cleanup()
         unload_module()
@@ -237,7 +225,8 @@ def cmd_random_ini(filename):
 
     def on_dev(iface_name, dev_name):
         nonlocal txt, empty_line
-        txt += '%s[%s]\n' % (empty_line and '\n' or '', dev_name)
+        sect = config.EXTERN_DEV_NAME_PREFIXES[iface_name] + dev_name[len(iface_name):]
+        txt += '%s[%s]\n' % (empty_line and '\n' or '', sect)
         empty_line = True
 
     def on_pair(iface_name, dev_name, pair_num, pair):
@@ -316,6 +305,7 @@ def main(argv):
 # ----------------------------------------------------------------------
 
 def cleanup():
+    config.ifaces_cleanup()
     if is_module_loaded():
         unload_module()
 
