@@ -410,11 +410,17 @@ static struct attribute * iface_default_attrs[] = {
 };
 #undef DEF_ATTR
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 ATTRIBUTE_GROUPS(iface_default);
+#endif
 
 static struct kobj_type iface_ktype = {
 	.sysfs_ops = &iface_sysfs_ops,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 	.default_groups = iface_default_groups,
+#else
+	.default_attrs = iface_default_attrs,
+#endif
 };
 
 
@@ -684,12 +690,18 @@ static struct attribute * dev_default_attrs[] = {
 };
 #undef DEF_ATTR
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 ATTRIBUTE_GROUPS(dev_default);
+#endif
 
 static struct kobj_type dev_ktype = {
 	.sysfs_ops = &dev_sysfs_ops,
 	.release = dev_release,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0))
 	.default_groups = dev_default_groups,
+#else
+	.default_attrs = dev_default_attrs,
+#endif
 };
 
 

@@ -1,6 +1,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/printk.h>
 
@@ -318,7 +319,7 @@ static void del_dev(struct hwe_dev_priv * dev)
 
 struct hwe_dev_priv * hwe_create_i2c_device(struct hwe_dev * hwedev, long index)
 {
-	struct hwe_dev_priv * dev;
+	struct hwe_dev_priv * dev = NULL;
 	int err;
 
 	if (index < 0 || index >= HWE_MAX_DEVICES)

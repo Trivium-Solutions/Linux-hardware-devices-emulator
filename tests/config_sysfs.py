@@ -297,6 +297,7 @@ def compare_config(cfg1, cfg2):
 # ----------------------------------------------------------------------
 
 def is_module_loaded(module):
+    # XXX we cannot detect built-in modules this way
     with open('/proc/modules', 'rt') as f:
         for line in f.readlines():
             if module in line:
@@ -309,6 +310,11 @@ I2C_DEV_DIR = '/sys/class/i2c-dev'
 
 def i2c_get_adapter_name(dev_name):
     return read_file('/'.join([I2C_DEV_DIR, dev_name, 'name']))
+
+# ----------------------------------------------------------------------
+
+def is_i2c_dev_loaded():
+    return os.path.isdir(I2C_DEV_DIR)
 
 # ----------------------------------------------------------------------
 
@@ -336,7 +342,7 @@ def ifaces_init(config):
     # We cannot access i2c devices from userspace without the i2c-dev
     # driver loaded.
 
-    if not is_module_loaded('i2c_dev'):
+    if not is_i2c_dev_loaded():
         run(['modprobe', 'i2c_dev'])
 
     sstr = 'adapter '
