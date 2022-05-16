@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+
+[ $(id -u) = "0" ] || \
+    { echo You must be root to run this script ; exit 1 ; }
+
+[ -d /lib/modules/`uname -r`/build ] || \
+    { echo "You don't seem to have Linux headers installed" ; exit 1 ; }
+
+gcc -v > /dev/null 2>&1 || \
+    { echo "You don't seem to have GCC installed" ; exit 1 ; }
+
+python3 -V > /dev/null 2>&1 || \
+    { echo "You don't seem to have Python 3 installed" ; exit 1 ; }
+
+PROG_NAME=hwemu
+KMOD_NAME=$PROG_NAME
+CTL_UTIL_NAME=hwectl
+SCRIPT=`realpath "$0"`
+BASE_DIR=`dirname "$SCRIPT"`
+KMOD_DIR="${BASE_DIR}"/kernel
+CTL_DIR="${BASE_DIR}"/control
+TESTS_DIR="${BASE_DIR}"/tests
+
+# make the kernel module
+
+case "$KMOD_DIR" in
+    *\ * )
+        # we may have problems building the kernel module
+        echo You cannot install ${PROG_NAME} from a path with spaces.
+        echo Your ${PROG_NAME} path is \"${BASE_DIR}\"
+        exit 1
+    ;;
+esac
+
+cd "${KMOD_DIR}"
+make
+EXIT_CODE=$?
+cd "${BASE_DIR}"
+
+[ $EXIT_CODE = "0" ] || exit 1
+
+INSTALL_DIR=/opt/maindotc/${PROG_NAME}
+
+mkdir -p $INSTALL_DIR || exit 1
+cp ${KMOD_DIR}/${KMOD_NAME}.ko ${INSTALL_DIR} || exit 1
+cp ${CTL_DIR}/${CTL_UTIL_NAME} ${INSTALL_DIR} || exit 1
+cp ${CTL_DIR}/${CTL_UTIL_NAME}.py ${INSTALL_DIR} || exit 1
+cp ${TESTS_DIR}/config_sysfs.py ${INSTALL_DIR} || exit 1
+
+ln -s ${INSTALL_DIR}/${CTL_UTIL_NAME} /usr/local/bin/${CTL_UTIL_NAME} || exit 1
+
+echo
+echo ${PROG_NAME} has been successfully installed
+echo Run \"${CTL_UTIL_NAME} help\" for help
