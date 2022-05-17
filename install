@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 
+[ $(id -u) = "0" ] || \
+    { echo You must be root to run this script ; exit 1 ; }
+
 install_deps_hint() {
 
     if [ -f /etc/rpi-issue ] ; then
@@ -33,8 +36,6 @@ install_deps_hint() {
 
 }
 
-[ $(id -u) = "0" ] || \
-    { echo You must be root to run this script ; install_deps_hint ; exit 1 ; }
 
 [ -d /lib/modules/`uname -r`/build ] || \
     { echo "You don't seem to have Linux headers installed" ; install_deps_hint ; exit 1 ; }
