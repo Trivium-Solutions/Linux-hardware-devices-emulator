@@ -1,16 +1,49 @@
 #!/usr/bin/env sh
 
+install_deps_hint() {
+
+    if [ -f /etc/rpi-issue ] ; then
+        KERN_HDRS=raspberrypi-kernel-headers
+    else
+        if [ -f /etc/os-release ] ; then
+            OS=`awk -F= '$1=="ID" { print $2 ;}' /etc/os-release`
+        fi
+
+        if [ "$OS" = "ubuntu" ] ; then
+            ARCH=`uname -m`
+
+            if echo $ARCH | grep -q tegra ; then
+                KERN_HDRS=nvidia-l4t-kernel-headers
+            else
+                KERN_HDRS='linux-headers-$(uname -r)'
+            fi
+        fi
+    fi
+
+    [ -z "$KERN_HDRS" ] && return
+
+    echo
+    echo "To install all the dependencies, you may try to run:"
+    echo
+    echo "  sudo apt-get install python3 build-essential $KERN_HDRS"
+    echo
+    echo "Before doing this, you should update your system and reboot,"
+    echo "if necessary"
+    echo
+
+}
+
 [ $(id -u) = "0" ] || \
-    { echo You must be root to run this script ; exit 1 ; }
+    { echo You must be root to run this script ; install_deps_hint ; exit 1 ; }
 
 [ -d /lib/modules/`uname -r`/build ] || \
-    { echo "You don't seem to have Linux headers installed" ; exit 1 ; }
+    { echo "You don't seem to have Linux headers installed" ; install_deps_hint ; exit 1 ; }
 
 gcc -v > /dev/null 2>&1 || \
-    { echo "You don't seem to have GCC installed" ; exit 1 ; }
+    { echo "You don't seem to have GCC installed" ; install_deps_hint ; exit 1 ; }
 
 python3 -V > /dev/null 2>&1 || \
-    { echo "You don't seem to have Python 3 installed" ; exit 1 ; }
+    { echo "You don't seem to have Python 3 installed" ; install_deps_hint ; exit 1 ; }
 
 PROG_NAME=hwemu
 KMOD_NAME=$PROG_NAME
