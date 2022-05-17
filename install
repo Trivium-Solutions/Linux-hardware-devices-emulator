@@ -13,9 +13,7 @@ install_deps_hint() {
         fi
 
         if [ "$OS" = "ubuntu" ] ; then
-            ARCH=`uname -r`
-
-            if echo $ARCH | grep -q tegra ; then
+            if uname -r | grep -q tegra ; then
                 KERN_HDRS=nvidia-l4t-kernel-headers
             else
                 KERN_HDRS='linux-headers-$(uname -r)'
