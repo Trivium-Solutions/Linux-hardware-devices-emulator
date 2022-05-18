@@ -103,7 +103,7 @@ static int hwetty_write(struct tty_struct *tty,
 		if (n != pair->resp_size)
 			pr_err("tty_insert_flip_string_fixed_flag() "
 				"added only %d byte(s) of %ld\n",
-				n, pair->resp_size);
+				n, (long)pair->resp_size);
 	}
 
 	hwe_log_request(HWE_TTY, dev->index, buffer, count, !!pair);

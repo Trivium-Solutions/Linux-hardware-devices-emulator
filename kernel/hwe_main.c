@@ -54,7 +54,7 @@ void hwe_log_request(enum HWE_IFACE iface, long dev_num,
 		return;
 
 	pr_info("%s%ld <-- %ld byte(s) (response %savailable):\n",
-		iface_to_str(iface), dev_num, req_size,
+		iface_to_str(iface), dev_num, (long)req_size,
 		have_response ? "" : "not ");
 
 	print_hex_dump(KERN_INFO, "", 0, 16, 1, request, req_size, false);
@@ -68,7 +68,7 @@ void hwe_log_response(enum HWE_IFACE iface, long dev_num,
 		return;
 
 	pr_info("%s%ld --> %ld byte(s):\n",
-		iface_to_str(iface), dev_num, resp_size);
+		iface_to_str(iface), dev_num, (long)resp_size);
 
 	print_hex_dump(KERN_INFO, "", 0, 16, 1, response, resp_size, false);
 }
