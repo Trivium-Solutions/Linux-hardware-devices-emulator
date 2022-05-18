@@ -55,7 +55,7 @@ In this case, you should replace the device name specified in your
 To stop emulation, use the `stop` command:
 
 ```
-$ sudo ./hwectl stop
+$ sudo hwectl stop
 ```
 
 This command will remove the emulated devices and unload the kernel
@@ -64,7 +64,7 @@ module.
 To get a list of available commands, run:
 
 ```
-$ ./hwectl help
+$ hwectl help
 ```
 
 ## Configuration syntax
