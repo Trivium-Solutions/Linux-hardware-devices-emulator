@@ -31,6 +31,35 @@ def assert_root():
 
 # ----------------------------------------------------------------------
 
+def check_group():
+    sudo_user = os.environ.get('SUDO_USER', '')
+
+    if sudo_user == '':
+        # launched by root or regular user, without sudo
+        return
+
+    import grp
+
+    groups = []
+
+    for g in grp.getgrall():
+        if (g[0] == 'dialout' or g[0] == 'i2c') and not sudo_user in g[3]:
+            groups.append(g[0])
+
+    if len(groups) == 0:
+        return
+
+    print('*** WARNING: You can access the emulated devices only')
+    print('    as root or by using sudo. If you want to access')
+    print('    the devices as a regular user, you need to add')
+    print('    yourself to the corresponding groups:')
+    print()
+    print('      sudo usermod -aG %s `whoami`' % (','.join(groups)))
+    print()
+    print('    and reboot your computer.')
+
+# ----------------------------------------------------------------------
+
 def get_module_filename(modname):
     modname += '.ko'
     dirs = ('.', '../kernel')
@@ -189,6 +218,8 @@ def cmd_start(filename):
     config.write_config(cfg)
 
     config.ifaces_init(cfg)
+
+    check_group()
 
 # ----------------------------------------------------------------------
 

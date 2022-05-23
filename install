@@ -69,18 +69,49 @@ make
 EXIT_CODE=$?
 cd "${BASE_DIR}"
 
-[ $EXIT_CODE = "0" ] || exit 1
+[ "$EXIT_CODE" = "0" ] || exit 1
 
 INSTALL_DIR=/opt/maindotc/${PROG_NAME}
 
 mkdir -p $INSTALL_DIR || exit 1
-cp ${KMOD_DIR}/${KMOD_NAME}.ko ${INSTALL_DIR} || exit 1
-cp ${CTL_DIR}/${CTL_UTIL_NAME} ${INSTALL_DIR} || exit 1
-cp ${CTL_DIR}/${CTL_UTIL_NAME}.py ${INSTALL_DIR} || exit 1
-cp ${TESTS_DIR}/config_sysfs.py ${INSTALL_DIR} || exit 1
 
-ln -s ${INSTALL_DIR}/${CTL_UTIL_NAME} /usr/local/bin/${CTL_UTIL_NAME} || exit 1
+cp ${KMOD_DIR}/${KMOD_NAME}.ko \
+   ${CTL_DIR}/${CTL_UTIL_NAME} \
+   ${CTL_DIR}/${CTL_UTIL_NAME}.py \
+   ${TESTS_DIR}/config_sysfs.py \
+   ${INSTALL_DIR} || exit 1
+
+LNK_DIR=/usr/local/bin
+
+[ ! -d "$LNK_DIR" ] && { mkdir -p "$LNK_DIR" || exit 1 ; }
+
+ln -s -f ${INSTALL_DIR}/${CTL_UTIL_NAME} ${LNK_DIR}/${CTL_UTIL_NAME} || exit 1
 
 echo
 echo ${PROG_NAME} has been successfully installed
 echo Run \"${CTL_UTIL_NAME} help\" for help
+
+[ -z "$SUDO_USER" ] && exit 0
+
+check_add_to_group() {
+    # if group exists && user not in group then add user to group
+    grep -q "^$1:" /etc/group && \
+    ! groups $SUDO_USER | grep -q "\b$1\b" && \
+    usermod -aG $1 $SUDO_USER && \
+    echo User \"${SUDO_USER}\" has been added to the group \"$1\"
+}
+
+NEED_REBOOT=0
+
+echo
+
+check_add_to_group dialout && NEED_REBOOT=1
+# On Ubuntu for Raspberry Pi, i2c devices belong to
+# the dialout group, while on other Ubuntu distributions
+# and Debian, they belong to the i2c group.
+check_add_to_group i2c && NEED_REBOOT=1
+
+[ "$NEED_REBOOT" = "0" ] && exit 0
+
+echo
+echo Reboot your computer for the changes to take effect.
