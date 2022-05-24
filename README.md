@@ -38,8 +38,11 @@ When the installation is complete, you can load a test configuration
 using the control utility:
 
 ```
-$ sudo hwectl start tests/test.ini
+$ hwectl start tests/test.ini
 ```
+
+The control utility requires root privileges to operate, so you may be
+prompted for the root password.
 
 If the control utility encounters a device naming conflict, the
 configuration will not be loaded, and an error message will be printed:
@@ -55,7 +58,7 @@ In this case, you should replace the device name specified in your
 To stop emulation, use the `stop` command:
 
 ```
-$ sudo hwectl stop
+$ hwectl stop
 ```
 
 This command will remove the emulated devices and unload the kernel
