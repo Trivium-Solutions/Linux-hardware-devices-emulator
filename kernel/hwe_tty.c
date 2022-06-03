@@ -156,11 +156,11 @@ struct hwe_dev_priv * hwe_create_tty_device(struct hwe_dev * hwedev, long index)
 
 	if (index < 0 || index >= HWE_MAX_DEVICES)
 		/* can't happen? */
-		pr_err("%s%ld: device not created; index out of range!",
+		pr_err("%s%ld: device not created; index out of range!\n",
 			iface_to_str(HWE_TTY), index);
 	else
 	if (!(dev = kzalloc(sizeof(*dev), GFP_KERNEL)))
-		pr_err("%s%ld: device not created; out of memory!",
+		pr_err("%s%ld: device not created; out of memory!\n",
 			iface_to_str(HWE_TTY), index);
 	else {
 		struct device * d;
@@ -226,7 +226,7 @@ int hwe_init_tty(void)
 	err = tty_register_driver(driver);
 
 	if (err) {
-		pr_err("failed to register " TTY_DRIVER_NAME " driver");
+		pr_err("failed to register " TTY_DRIVER_NAME " driver\n");
 		tty_driver_kref_put(driver);
 
 		for (i = 0; i < HWE_MAX_DEVICES; i++)

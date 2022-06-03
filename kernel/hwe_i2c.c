@@ -324,15 +324,15 @@ struct hwe_dev_priv * hwe_create_i2c_device(struct hwe_dev * hwedev, long index)
 
 	if (index < 0 || index >= HWE_MAX_DEVICES)
 		/* can't happen? */
-		pr_err("%s%ld: device not created; index out of range!",
+		pr_err("%s%ld: device not created; index out of range!\n",
 			iface_to_str(HWE_I2C), index);
 	else
 	if (!(dev = alloc_dev(hwedev, index)))
-		pr_err("%s%ld: device not created; out of memory!",
+		pr_err("%s%ld: device not created; out of memory!\n",
 			iface_to_str(HWE_I2C), index);
 	else
 	if (!!(err = i2c_add_adapter(&dev->adapter))) {
-		pr_err("%s%ld: i2c_add_adapter() failed (error code %d)",
+		pr_err("%s%ld: i2c_add_adapter() failed (error code %d)\n",
 			iface_to_str(HWE_I2C), index, err);
 		del_dev(dev);
 		dev = NULL;
