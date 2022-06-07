@@ -14,6 +14,7 @@
 #define	NET_DRIVER_NAME	"hwenet"
 
 struct hwe_dev_priv {
+	struct hwe_dev * hwedev;
 	long index;
 	struct net_device *net_dev;
 	struct list_head devices;
@@ -33,17 +34,37 @@ static int hwenet_stop(struct net_device *ndev)
 	return 0;
 }
 
+static int send_response(struct net_device *dev, const char * data, unsigned int len)
+{
+	struct sk_buff *skb = dev_alloc_skb(len + 2);
+
+	skb_reserve(skb, 2);
+	memcpy(skb_put(skb, len), data, len);
+	skb->dev = dev;
+	skb->protocol = eth_type_trans(skb, dev);
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+	dev->stats.rx_packets++;
+	return netif_rx(skb);
+}
+
 static int hwenet_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	struct hwe_dev_priv *priv = netdev_priv(ndev);
-
-//	pr_info("%s%ld:\n", NET_DRIVER_NAME, priv->index);
-//	print_hex_dump(KERN_INFO, " tx: ", 0, 16, 1, skb->data, skb->len, 1);
+	struct hwe_pair * pair;
 
 	ndev->stats.tx_bytes += skb->len;
 	ndev->stats.tx_packets++;
 	skb_tx_timestamp(skb);
+
+	pair = find_response(priv->hwedev, skb->data, skb->len);
+	hwe_log_request(HWE_NET, priv->index, skb->data, skb->len, !!pair);
+
 	dev_kfree_skb(skb);
+
+	if (pair) {
+		hwe_log_response(HWE_TTY, priv->index, pair->resp, pair->resp_size);
+		return send_response(ndev, pair->resp, pair->resp_size);
+	}
 
 	return NETDEV_TX_OK;
 }
@@ -67,7 +88,7 @@ static void hwenet_init(struct net_device *ndev)
 	ndev->netdev_ops = &hwe_netdev_ops;
 	ndev->flags |= IFF_NOARP;
 	ndev->max_mtu = 4 * 1024;
-//	ndev->features |= NETIF_F_HW_CSUM;
+	ndev->features |= NETIF_F_HW_CSUM;
 
 	priv = netdev_priv(ndev);
 
@@ -93,6 +114,7 @@ struct hwe_dev_priv * hwe_create_net_device(struct hwe_dev * hwedev, long index)
 	priv = netdev_priv(ndev);
 
 	priv->index = index;
+	priv->hwedev = hwedev;
 
 	err = register_netdev(ndev);
 
