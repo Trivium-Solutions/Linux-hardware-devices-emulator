@@ -15,10 +15,11 @@ import subprocess
 
 IF_I2C = 'i2c'
 IF_TTY = 'tty'
+IF_NET = 'net'
 
-IFACES = (IF_I2C, IF_TTY)
+IFACES = (IF_I2C, IF_TTY, IF_NET)
 
-EXTERN_DEV_NAME_PREFIXES = { IF_I2C: 'i2c-', IF_TTY: 'ttyUSB' }
+EXTERN_DEV_NAME_PREFIXES = { IF_I2C: 'i2c-', IF_TTY: 'ttyUSB', IF_NET: 'eth' }
 
 KMOD_NAME = 'hwemu'
 
@@ -319,19 +320,24 @@ def is_i2c_dev_loaded():
 # ----------------------------------------------------------------------
 
 HWEMU_TTY_NAME = '/dev/ttyHWE'
+HWEMU_NETDEV_NAME = 'hwenet'
 
 def ifaces_init(config):
 
     symlinks = {}
+    netdevs = []
 
     def on_dev(iface_name, dev_name):
-        nonlocal symlinks
+        nonlocal symlinks, netdevs
         lnk = config[iface_name][dev_name].get('_extern_dev_name')
 
         if lnk is None:
             throw('Broken config: No name for device %s' % (dev_name))
 
-        symlinks[dev_name] = { 'link': '/dev/' + lnk }
+        if iface_name == IF_NET:
+            netdevs.append(lnk)
+        else:
+            symlinks[dev_name] = { 'link': '/dev/' + lnk }
 
     traverse_config(config, on_iface = None, on_dev = on_dev, on_pair = None)
 
@@ -401,6 +407,23 @@ def ifaces_init(config):
 
         os.symlink(tgt, lnk)
 
+    # net
+
+    for n in range(len(netdevs)):
+        if not os.path.isdir('/sys/class/net/%s%d' % (HWEMU_NETDEV_NAME, n)):
+            throw("Couldn't create device %s" % (netdevs[n]))
+
+        # Bring the interface online.
+
+        # XXX Assume iproute2 is installed on your system (on most
+        # systems, it is). Otherwise, we could implement this via
+        # ioctl SIOCGIFFLAGS/SIOCSIFFLAGS, e.g:
+        # + https://www.oreilly.com/library/view/python-cookbook/0596001673/ch07s05.html
+        # + https://stackoverflow.com/questions/20420937/how-to-assign-ip-address-to-interface-in-python
+        # + https://stackoverflow.com/questions/6067405/python-sockets-enabling-promiscuous-mode-in-linux
+
+        run(['ip', 'link', 'set', HWEMU_NETDEV_NAME + str(n), 'up'])
+
 # ----------------------------------------------------------------------
 
 def ifaces_cleanup():
@@ -430,6 +453,9 @@ def ifaces_cleanup():
             tgt = os.path.realpath(lnk)
             if HWEMU_TTY_NAME in tgt:
                 os.remove(lnk)
+
+    # net
+    # Do nothing, all interfaces will be shut down in the usual way.
 
 # ----------------------------------------------------------------------
 
