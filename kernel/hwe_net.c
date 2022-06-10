@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/ethtool.h>
@@ -87,7 +88,9 @@ static void hwenet_init(struct net_device *ndev)
 
 	ndev->netdev_ops = &hwe_netdev_ops;
 	ndev->flags |= IFF_NOARP;
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 10, 0))
 	ndev->max_mtu = 4 * 1024;
+#endif
 	ndev->features |= NETIF_F_HW_CSUM;
 
 	priv = netdev_priv(ndev);
