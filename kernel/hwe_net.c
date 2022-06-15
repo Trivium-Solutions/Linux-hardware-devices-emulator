@@ -63,7 +63,7 @@ static int hwenet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	dev_kfree_skb(skb);
 
 	if (pair) {
-		hwe_log_response(HWE_TTY, priv->index, pair->resp, pair->resp_size);
+		hwe_log_response(HWE_NET, priv->index, pair->resp, pair->resp_size);
 		return send_response(ndev, pair->resp, pair->resp_size);
 	}
 
