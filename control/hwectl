@@ -3,7 +3,7 @@
 SCRIPT=`realpath "$0"`
 BASE_DIR=`dirname "$SCRIPT"`
 
-if [ "$USER" = "root" ] ; then
+if [ $(id -u) -eq 0 ] ; then
     python3 "$BASE_DIR"/hwectl.py $*
 else
     sudo python3 "$BASE_DIR"/hwectl.py $*
