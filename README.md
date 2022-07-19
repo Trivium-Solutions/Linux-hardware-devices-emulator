@@ -14,6 +14,7 @@ Currently, the kernel module aims to emulate the following types of
 devices:
 - tty
 - i2c
+- network
 
 The control utility is responsible for configuring the kernel module.
 
@@ -75,15 +76,16 @@ $ hwectl help
 Configuration files have an
 [INI](https://en.wikipedia.org/wiki/INI_file)-like syntax. The sections
 of a configuration file represent the devices you want to emulate. The
-section names specify the device names that will be created in `/dev`.
-For example, the section name `[ttyUSB0]` instructs the emulator to
-create the device `/dev/ttyUSB0` (if such a device doesn't already
-exist).
+section names specify the device names that will be created in `/dev`
+(except for network devices). For example, the section name `[ttyUSB0]`
+instructs the emulator to create the device `/dev/ttyUSB0` (if such a
+device doesn't already exist).
 
 The section names must match certain patterns:
 
 - `ttyUSB*` for TTY devices;
 - `i2c-*` for I2C devices.
+- `eth*` for network devices.
 
 Any other names are considered invalid.
 
