@@ -1,6 +1,10 @@
-# emulator
+# Linux hardware devices emulator
 
-Emulator of arbitrary Linux devices.
+Linux Emulator of arbitrary hardware devices. This software can be used to
+emulate hardware devices for testing purposes. Currently, it supports simple
+request/respose communication (request initiated from userspace, kernel module 
+returns a response according to configuration).
+
 
 This software consists of two major components: a Linux kernel module
 and a control utility. The kernel module implements drivers for various
