@@ -105,7 +105,7 @@ static void __exit hwemu_exit(void) {
 module_init(hwemu_init);
 module_exit(hwemu_exit);
 
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual MIT/GPL");
 
 module_param(log_requests, bool, 0644);
 MODULE_PARM_DESC(log_requests, "Enable logging of requests");
