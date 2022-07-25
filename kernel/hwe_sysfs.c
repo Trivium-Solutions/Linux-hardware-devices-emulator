@@ -222,13 +222,15 @@ static struct kobj_type dev_ktype;
 
 static struct hwe_dev * new_dev(enum HWE_IFACE iface) {
 	struct hwe_iface * ifc = &ifaces[iface];
-	long idx = find_free_dev_index(iface);
 	struct hwe_dev * ret = NULL;
+	long idx;
 	int err;
 
 	/* format of directory name: <interface name> <index>, eg tty0 */
 
 	lock_iface_devs(iface);
+
+	idx = find_free_dev_index(iface);
 
 	if (idx < 0)
 		pr_err("%s: device not created; too many devices",
