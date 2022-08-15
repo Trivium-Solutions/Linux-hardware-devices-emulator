@@ -1,4 +1,6 @@
-/*
+/*!
+   \file kernel_utils.h
+
    Declarations for some kernel code that we use in userspace
    for testing/debugging.
 */

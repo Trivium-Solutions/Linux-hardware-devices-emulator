@@ -1,3 +1,8 @@
+/*!
+ * \file hwe_i2c.c
+ * \brief I2C device emulator
+ *
+ */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -14,11 +19,13 @@
 	 I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA | \
 	 I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA)
 
+/*! Virtual "chip" accessed via I2C. */
 struct hwe_chip {
 	u8 pos;
 	u8 dat[I2C_CHIP_SIZE];
 };
 
+/*! Private data for the I2C device. */
 struct hwe_dev_priv {
 	bool in_use;
 	struct hwe_dev * hwedev;
@@ -317,6 +324,8 @@ static void del_dev(struct hwe_dev_priv * dev)
 	kfree(dev);
 }
 
+/*! Create an instance of the I2C device.
+ */
 struct hwe_dev_priv * hwe_create_i2c_device(struct hwe_dev * hwedev, long index)
 {
 	struct hwe_dev_priv * dev = NULL;
@@ -341,6 +350,8 @@ struct hwe_dev_priv * hwe_create_i2c_device(struct hwe_dev * hwedev, long index)
 	return dev;
 }
 
+/*! Destroy an instance of the I2C device.
+ */
 void hwe_destroy_i2c_device(struct hwe_dev_priv * device)
 {
 
@@ -349,6 +360,8 @@ void hwe_destroy_i2c_device(struct hwe_dev_priv * device)
 	i2c_del_adapter(&device->adapter);
 }
 
+/*! Initialize the I2C emulator.
+ */
 int hwe_init_i2c(void)
 {
 	int err = 0;
@@ -362,6 +375,8 @@ int hwe_init_i2c(void)
 	return err;
 }
 
+/*! Deinitialize the I2C emulator.
+ */
 void hwe_cleanup_i2c(void)
 {
 	struct list_head * e;

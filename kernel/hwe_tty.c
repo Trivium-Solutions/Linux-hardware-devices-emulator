@@ -1,3 +1,8 @@
+/*!
+ * \file hwe_tty.c
+ * \brief TTY device emulator
+ *
+ */
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/init.h>
@@ -14,6 +19,7 @@
 
 #define TTY_DRIVER_NAME "hwetty"
 
+/*! Private data for the TTY device. */
 struct hwe_dev_priv {
 	struct hwe_dev * hwedev;
 	struct tty_struct * tty;
@@ -150,6 +156,8 @@ static const struct tty_operations serial_ops = {
 	.write_room = hwetty_write_room,
 };
 
+/*! Create an instance of the TTY device.
+ */
 struct hwe_dev_priv * hwe_create_tty_device(struct hwe_dev * hwedev, long index)
 {
 	struct hwe_dev_priv * dev = NULL;
@@ -186,6 +194,8 @@ struct hwe_dev_priv * hwe_create_tty_device(struct hwe_dev * hwedev, long index)
 	return dev;
 }
 
+/*! Destroy an instance of the TTY device.
+ */
 void hwe_destroy_tty_device(struct hwe_dev_priv * device)
 {
 	int idx = device->index;
@@ -195,6 +205,8 @@ void hwe_destroy_tty_device(struct hwe_dev_priv * device)
 	devices[idx] = NULL;
 }
 
+/*! Initialize the TTY emulator.
+ */
 int hwe_init_tty(void)
 {
 	int i;
@@ -240,6 +252,8 @@ int hwe_init_tty(void)
 	return 0;
 }
 
+/*! Deinitialize the TTY emulator.
+ */
 void hwe_cleanup_tty(void)
 {
 	int i;

@@ -1,3 +1,8 @@
+/*!
+ * \file hwe_utils.c
+ * \brief Utility functions
+ *
+ */
 #ifdef __KERNEL__
 #	include <linux/kobject.h>
 #	include <linux/kernel.h>
@@ -21,6 +26,8 @@ const char * iface_to_str(enum HWE_IFACE iface)
 	}
 }
 
+/*! Returns non-zero if \a str is the name of an interface, in which case
+    the variable pointed to by \a iface is assigned the interface number. */
 int str_to_iface(const char * str, enum HWE_IFACE * iface)
 {
 #define CHECK(__upper, __lower) \

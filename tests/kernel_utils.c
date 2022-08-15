@@ -1,4 +1,6 @@
-/*
+/*!
+   \file kernel_utils.c
+
    Some kernel code that we use in userspace for testing/debugging.
 */
 

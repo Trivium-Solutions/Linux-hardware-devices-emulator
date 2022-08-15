@@ -1,4 +1,10 @@
-
+/*!
+ * \file hwe_main.c
+ * \brief Main unit
+ *
+ * This is the main unit of the kernel module.
+ * It bootstraps and shuts down all the emulated devices.
+ */
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>

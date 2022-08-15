@@ -1,3 +1,8 @@
+/*!
+ * \file hwemu.h
+ * \brief Main header
+ *
+ */
 #ifndef HWEMU_H_INCLUDED
 #define HWEMU_H_INCLUDED 1
 

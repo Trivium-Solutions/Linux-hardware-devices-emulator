@@ -1,4 +1,8 @@
-
+/*!
+ * \file hwe_sysfs.c
+ * \brief sysfs interface with the kernel module
+ *
+ */
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -739,6 +743,8 @@ static void cleanup_iface(enum HWE_IFACE iface)
 	kobject_put(&ifc->kobj);
 }
 
+/*! Initialize the sysfs interface with the kernel module.
+*/
 int hwe_init_sysfs(void)
 {
 	int i;
@@ -768,6 +774,8 @@ int hwe_init_sysfs(void)
 	return 0;
 }
 
+/*! Deinitialize the sysfs interface with the kernel module.
+*/
 void hwe_cleanup_sysfs(void)
 {
 	int i;

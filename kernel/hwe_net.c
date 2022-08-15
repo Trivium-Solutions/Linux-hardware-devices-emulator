@@ -1,3 +1,8 @@
+/*!
+ * \file hwe_net.c
+ * \brief Network device emulator
+ *
+ */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -14,6 +19,7 @@
 
 #define	NET_DRIVER_NAME	"hwenet"
 
+/*! Private data for the network device */
 struct hwe_dev_priv {
 	struct hwe_dev * hwedev;
 	long index;
@@ -99,6 +105,8 @@ static void hwenet_init(struct net_device *ndev)
 	list_add(&priv->devices, &devices);
 }
 
+/*! Create an instance of the network device.
+ */
 struct hwe_dev_priv * hwe_create_net_device(struct hwe_dev * hwedev, long index)
 {
 	struct net_device *ndev;
@@ -132,6 +140,8 @@ struct hwe_dev_priv * hwe_create_net_device(struct hwe_dev * hwedev, long index)
 	return priv;
 }
 
+/*! Destroy an instance of the network device.
+ */
 void hwe_destroy_net_device(struct hwe_dev_priv * device)
 {
 	list_del(&device->devices);
@@ -139,6 +149,8 @@ void hwe_destroy_net_device(struct hwe_dev_priv * device)
 	free_netdev(device->net_dev);
 }
 
+/*! Initialize the network device emulator.
+ */
 int hwe_init_net(void)
 {
 	int err = 0;
@@ -152,6 +164,8 @@ int hwe_init_net(void)
 	return err;
 }
 
+/*! Deinitialize the network device emulator.
+ */
 void hwe_cleanup_net(void)
 {
 	struct list_head * e;
