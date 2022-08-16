@@ -55,7 +55,7 @@ struct hwe_dev_priv;
 #define HWE_STR(x) #x
 #define HWE_STRLEN(x) (sizeof(HWE_STR(x)) - 1)
 
-/*! Request-response pair */
+/*! \brief Request-response pair */
 struct hwe_pair {
 	struct list_head entry;
 	unsigned char req[HWE_MAX_REQUEST];

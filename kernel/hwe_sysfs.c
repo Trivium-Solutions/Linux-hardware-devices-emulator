@@ -18,6 +18,7 @@
  * (add/delete/etc) logged in debug mode. */
 //#define LOG_PAIRS 1
 
+/*! \brief Internal representation of an interface */
 struct hwe_iface {
 	struct kobject kobj;
 	struct list_head dev_list;
@@ -27,6 +28,7 @@ struct hwe_iface {
 
 #define to_iface(p) container_of(p, struct hwe_iface, kobj)
 
+/*! \brief `sysfs` attribute of an interface */
 struct iface_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct hwe_iface * iface,
@@ -37,6 +39,7 @@ struct iface_attribute {
 
 #define to_iface_attr(p) container_of(p, struct iface_attribute, attr)
 
+/*! \brief Internal representation of a device */
 struct hwe_dev {
 	struct kobject kobj;
 	struct list_head entry;
@@ -50,6 +53,7 @@ struct hwe_dev {
 
 #define to_dev(p) container_of(p, struct hwe_dev, kobj)
 
+/*! \brief `sysfs` attribute of a device */
 struct dev_attribute {
 	struct attribute attr;
 	ssize_t (*show)(struct hwe_dev * dev,
@@ -60,6 +64,7 @@ struct dev_attribute {
 
 #define to_dev_attr(p) container_of(p, struct dev_attribute, attr)
 
+/*! \brief Operations for each device */
 struct hwe_dev_ops {
 	struct hwe_dev_priv * (*create)(struct hwe_dev * dev, long index);
 	void (*destroy)(struct hwe_dev_priv * device);

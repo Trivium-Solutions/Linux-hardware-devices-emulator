@@ -19,7 +19,7 @@
 	 I2C_FUNC_SMBUS_BYTE_DATA | I2C_FUNC_SMBUS_WORD_DATA | \
 	 I2C_FUNC_SMBUS_I2C_BLOCK | I2C_FUNC_SMBUS_BLOCK_DATA)
 
-/*! Virtual "chip" accessed via I2C. */
+/*! \brief Virtual "chip" accessed via I2C. */
 struct hwe_chip {
 	u8 pos;
 	u8 dat[I2C_CHIP_SIZE];
