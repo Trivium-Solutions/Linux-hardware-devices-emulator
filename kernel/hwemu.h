@@ -24,6 +24,7 @@
 	D(TTY, tty) \
 	D(I2C, i2c) \
 	D(NET, net) \
+	D(SPI, spi) \
 
 
 #define DEFINE_IFACE(__upper, __lower) HWE_##__upper,
