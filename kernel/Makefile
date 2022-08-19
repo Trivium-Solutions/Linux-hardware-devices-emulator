@@ -12,6 +12,7 @@ hwemu-objs += hwe_spi.o
 #CFLAGS_hwe_sysfs.o := -DDEBUG
 #CFLAGS_hwe_tty.o := -DDEBUG
 #CFLAGS_hwe_i2c.o := -DDEBUG
+#CFLAGS_hwe_spi.o := -DDEBUG
 
 # use these to add any global flags
 #MY_FLAGS += -g -DDEBUG
