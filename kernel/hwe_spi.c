@@ -61,42 +61,39 @@ struct spi_board_info chip = {
 
 static struct hwe_dev_priv * new_dev(struct hwe_dev * hwedev, struct platform_device *pdev)
 {
-	struct hwe_dev_priv * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
+	struct hwe_dev_priv *ret;
+	struct spi_master *master;
 	int err;
 
-	if (!ret) {
-		pr_err("kzalloc() failed!\n");
-		return NULL;
-	}
+	master = spi_alloc_master(&pdev->dev, sizeof(struct hwe_dev_priv));
 
-	ret->hwedev = hwedev;
-
-	ret->master = spi_alloc_master(&pdev->dev, 0);
-
-	if (ret->master == NULL) {
+	if (master == NULL) {
 		pr_err("spi_alloc_master() failed\n");
 		return NULL;
 	}
 
-	ret->master->num_chipselect = 1;
+	ret = spi_controller_get_devdata(master);
 
-	ret->master->transfer_one = hwespi_transfer_one;
+	ret->hwedev = hwedev;
+	ret->master = master;
 
-	err = spi_register_master(ret->master);
+	master->num_chipselect = 1;
+
+	master->transfer_one = hwespi_transfer_one;
+
+	err = spi_register_master(master);
 
 	if (err) {
 		pr_err("spi_register_master() failed (%d)\n", err);
-		spi_master_put(ret->master);
-		kfree(ret);
+		spi_master_put(master);
 		return NULL;
 	}
 
-	ret->spi_dev = spi_new_device(ret->master, &chip);
+	ret->spi_dev = spi_new_device(master, &chip);
 
 	if (!ret->spi_dev) {
 		pr_err("spi_new_device() failed\n");
-		spi_master_put(ret->master);
-		kfree(ret);
+		spi_master_put(master);
 		return NULL;
 	}
 
@@ -111,7 +108,6 @@ void del_dev(struct hwe_dev_priv * device)
 
 	spi_unregister_device(device->spi_dev);
 	spi_unregister_master(device->master);
-	kfree(device);
 }
 
 static int plat_probe(struct platform_device *pdev)
