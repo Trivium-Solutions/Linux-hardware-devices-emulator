@@ -23,6 +23,10 @@ struct hwe_dev_priv {
 	struct list_head devices;
 	struct spi_master *master;
 	struct spi_device *spi_dev;
+	long index;
+	u8 resp[HWE_MAX_RESPONSE];
+	u8 * resp_ptr;
+	size_t resp_size;
 };
 
 static struct list_head devices;
@@ -31,19 +35,67 @@ static struct platform_device * plat_device;
 static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *spi,
 			    struct spi_transfer *transfer)
 {
-	pr_debug("%s()\n", __func__);
-	pr_debug(" transfer->len == %u\n", transfer->len);
-	pr_debug(" transfer->rx_buf == %p\n", transfer->rx_buf);
-	pr_debug(" transfer->tx_buf == %p\n", transfer->tx_buf);
+	struct hwe_dev_priv *dev = spi_controller_get_devdata(ctlr);
+	struct hwe_pair *pair = NULL;
 
-	if (transfer->rx_buf) {
-		unsigned char * rx_buf = transfer->rx_buf;
-		const unsigned char * tx_buf = transfer->tx_buf;
-		int i;
+//	pr_debug("%s()\n", __func__);
+//	pr_debug(" transfer->len == %u\n", transfer->len);
+//	pr_debug(" transfer->rx_buf == %p\n", transfer->rx_buf);
+//	pr_debug(" transfer->tx_buf == %p\n", transfer->tx_buf);
 
-		for (i = 0; i < transfer->len; i++)
-			rx_buf[i] = tx_buf ? ~tx_buf[i] : 0;
+	if (transfer->tx_buf) {
+		pair = find_response(dev->hwedev, transfer->tx_buf, transfer->len);
 
+		hwe_log_request(HWE_SPI, dev->index, transfer->tx_buf,
+			transfer->len, !!pair);
+
+		if (dev->resp_size)
+			dev_err_ratelimited(&ctlr->dev, "new request arrived "
+				"while previous one is pending; "
+				"possible data loss\n");
+	}
+
+	if (transfer->rx_buf && transfer->tx_buf) {
+		/* reading & writing */
+
+		dev->resp_size = 0;
+
+		dev_dbg_ratelimited(&ctlr->dev, "attempt to read %d byte(s)\n",
+			transfer->len);
+	}
+	else
+	if (transfer->rx_buf && !transfer->tx_buf) {
+		/* reading */
+
+		if (dev->resp_size) {
+			size_t sz = dev->resp_size > transfer->len ?
+				transfer->len : dev->resp_size;
+
+			memcpy(transfer->rx_buf, dev->resp_ptr, sz);
+
+			/* FIXME Do we need to support reading in chunks
+			 * of sizes less than resp_size? */
+			dev->resp_size -= sz;
+			dev->resp_ptr += sz;
+
+			hwe_log_response(HWE_SPI, dev->index, transfer->rx_buf, transfer->len);
+		}
+		else {
+			dev_dbg_ratelimited(&ctlr->dev, "attempt to read %d byte(s)\n", transfer->len);
+		}
+
+	}
+	else
+	if (!transfer->rx_buf && transfer->tx_buf) {
+		/* writing*/
+
+		if (pair) {
+			memcpy(dev->resp, pair->resp, pair->resp_size);
+			dev->resp_size = pair->resp_size;
+			dev->resp_ptr = dev->resp;
+		}
+		else
+			dev->resp_size = 0;
 	}
 
 	spi_finalize_current_transfer(ctlr);
@@ -59,7 +111,7 @@ struct spi_board_info chip = {
 	.modalias = "bk4",
 };
 
-static struct hwe_dev_priv * new_dev(struct hwe_dev * hwedev, struct platform_device *pdev)
+static struct hwe_dev_priv * new_dev(struct hwe_dev * hwedev, long index, struct platform_device *pdev)
 {
 	struct hwe_dev_priv *ret;
 	struct spi_master *master;
@@ -75,6 +127,7 @@ static struct hwe_dev_priv * new_dev(struct hwe_dev * hwedev, struct platform_de
 	ret = spi_controller_get_devdata(master);
 
 	ret->hwedev = hwedev;
+	ret->index = index;
 	ret->master = master;
 
 	master->num_chipselect = 1;
@@ -141,7 +194,7 @@ struct hwe_dev_priv * hwe_create_spi_device(struct hwe_dev * hwedev, long index)
 {
 	struct hwe_dev_priv *priv;
 
-	priv = new_dev(hwedev, plat_device);
+	priv = new_dev(hwedev, index, plat_device);
 
 	return priv;
 }
