@@ -16,10 +16,11 @@ import subprocess
 IF_I2C = 'i2c'
 IF_TTY = 'tty'
 IF_NET = 'net'
+IF_SPI = 'spi'
 
-IFACES = (IF_I2C, IF_TTY, IF_NET)
+IFACES = (IF_I2C, IF_TTY, IF_NET, IF_SPI)
 
-EXTERN_DEV_NAME_PREFIXES = { IF_I2C: 'i2c-', IF_TTY: 'ttyUSB', IF_NET: 'eth' }
+EXTERN_DEV_NAME_PREFIXES = { IF_I2C: 'i2c-', IF_TTY: 'ttyUSB', IF_NET: 'eth', IF_SPI: 'spi-' }
 
 KMOD_NAME = 'hwemu'
 
@@ -319,6 +320,15 @@ def is_i2c_dev_loaded():
 
 # ----------------------------------------------------------------------
 
+SPIDEV_DIR = '/sys/class/spidev'
+
+# ----------------------------------------------------------------------
+
+def is_spidev_loaded():
+    return os.path.isdir(SPIDEV_DIR)
+
+# ----------------------------------------------------------------------
+
 HWEMU_TTY_NAME = '/dev/ttyHWE'
 HWEMU_NETDEV_NAME = 'hwenet'
 
@@ -368,6 +378,18 @@ def ifaces_init(config):
                             symlinks[dev_name]['target'] = '/dev/' + e.name
                         #else:
                         #    throw('Unexpected device /dev/%s' % (e.name))
+
+    # spi
+
+    ifc = IF_SPI
+
+    # We cannot access spi devices from userspace without the spidev
+    # driver loaded.
+
+    if not is_spidev_loaded():
+        run(['modprobe', 'spidev'])
+
+    # TODO
 
     # tty
 
@@ -453,6 +475,9 @@ def ifaces_cleanup():
             tgt = os.path.realpath(lnk)
             if HWEMU_TTY_NAME in tgt:
                 os.remove(lnk)
+    # spi
+
+    # TODO
 
     # net
     # Do nothing, all interfaces will be shut down in the usual way.
