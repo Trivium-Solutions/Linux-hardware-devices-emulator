@@ -329,6 +329,16 @@ def is_spidev_loaded():
 
 # ----------------------------------------------------------------------
 
+def _spidev_absnum(devname):
+    if not devname.startswith('spidev'):
+        return -1
+    lst = devname[len('spidev'):].split('.')
+    if len(lst) != 2 or not lst[0].isdigit() or not lst[1].isdigit():
+        return -1
+    return int(lst[0]) * 10000 + int(lst[1])
+
+# ----------------------------------------------------------------------
+
 HWEMU_TTY_NAME = '/dev/ttyHWE'
 HWEMU_NETDEV_NAME = 'hwenet'
 
@@ -389,7 +399,24 @@ def ifaces_init(config):
     if not is_spidev_loaded():
         run(['modprobe', 'spidev'])
 
-    # TODO
+    spidevs = []
+
+    with os.scandir(SPIDEV_DIR) as it:
+        for e in it:
+            if e.is_symlink():
+                tgt = os.path.realpath(e.path)
+                if '/hwe_plat/' in tgt:
+                    if _spidev_absnum(e.name) >= 0: # sanity
+                        spidevs.append(e.name)
+
+    spidevs.sort(key = _spidev_absnum)
+
+    for i in range(len(spidevs)):
+        dev_name = IF_SPI + str(i)
+        if dev_name in symlinks:
+            symlinks[dev_name]['target'] = '/dev/' + spidevs[i]
+        #else:
+        #    throw('Unexpected device /dev/%s' % (spidevs[i]))
 
     # tty
 
@@ -477,7 +504,12 @@ def ifaces_cleanup():
                 os.remove(lnk)
     # spi
 
-    # TODO
+    # remove all symlinks linking to our devices
+    for lnk in glob.glob('/dev/' + EXTERN_DEV_NAME_PREFIXES[IF_SPI]  + '*'):
+        if os.path.islink(lnk):
+            tgt = os.path.realpath(lnk)
+            if 'spidev' in tgt:
+                os.remove(lnk)
 
     # net
     # Do nothing, all interfaces will be shut down in the usual way.
