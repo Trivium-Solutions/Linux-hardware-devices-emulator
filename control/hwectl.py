@@ -31,6 +31,13 @@ def assert_root():
 
 # ----------------------------------------------------------------------
 
+def ensure_root():
+    if os.geteuid() != 0:
+        args = ['sudo', sys.executable] + sys.argv + [os.environ]
+        os.execlpe('sudo', *args)
+
+# ----------------------------------------------------------------------
+
 def check_group():
     sudo_user = os.environ.get('SUDO_USER', '')
 
@@ -204,7 +211,7 @@ Commands:
 # ----------------------------------------------------------------------
 
 def cmd_start(filename):
-    assert_root()
+    ensure_root()
 
     # we may be starting again, without a previous stopping
     if is_module_loaded():
@@ -224,7 +231,7 @@ def cmd_start(filename):
 # ----------------------------------------------------------------------
 
 def cmd_stop():
-    assert_root()
+    ensure_root()
 
     config.ifaces_cleanup()
 
@@ -235,7 +242,7 @@ def cmd_stop():
 
 def cmd_debug(filename):
 
-    assert_root()
+    ensure_root()
 
     load_module()
 
