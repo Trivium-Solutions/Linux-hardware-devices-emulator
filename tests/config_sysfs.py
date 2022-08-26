@@ -399,6 +399,16 @@ def ifaces_init(config):
     if not is_spidev_loaded():
         run(['modprobe', 'spidev'])
 
+    # bind the spidev driver to our devices
+
+    with os.scandir('/sys/bus/spi/devices') as it:
+        for e in it:
+            if e.is_symlink() and '/hwe_plat/' in os.path.realpath(e.path):
+                write_file('/sys/bus/spi/devices/%s/driver_override' % e.name, 'spidev')
+                write_file('/sys/bus/spi/drivers/spidev/bind', e.name)
+
+    # collect the symlinks
+
     spidevs = []
 
     with os.scandir(SPIDEV_DIR) as it:

@@ -104,11 +104,14 @@ static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *s
 }
 
 struct spi_board_info chip = {
-//	.modalias = "hwe_spi",
-	/* One of the devices supported by spidev. Here we use a fake
-	 * device to skip the procedure of binding our device to spidev.
-	 * See https://docs.kernel.org/spi/spidev.html */
-	.modalias = "bk4",
+	/* In the past, we could assign modalias to "spidev".
+	 * These days, we could assign modalias to any fake device name
+	 * from the list supported by the spidev driver (see spidev
+	 * source code).
+	 * But the proper way would be to assign modalias to our own
+	 * name and then bind spidev to our devices. For details, see
+	 * https://docs.kernel.org/spi/spidev.html */
+	.modalias = "hwe_spi",
 };
 
 static struct hwe_dev_priv * new_dev(struct hwe_dev * hwedev, long index, struct platform_device *pdev)
