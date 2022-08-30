@@ -525,7 +525,15 @@ static ssize_t dev_store(struct hwe_dev * dev,
 static ssize_t dev_count_show(struct hwe_dev * dev,
 	struct dev_attribute * attr, char * buf)
 {
-	return sprintf(buf, "%d", bitmap_weight(dev->pairs_indexes, HWE_MAX_PAIRS));
+	ssize_t ret;
+
+	lock_devs(dev);
+
+	ret = sprintf(buf, "%d", bitmap_weight(dev->pairs_indexes, HWE_MAX_PAIRS));
+
+	unlock_devs(dev);
+
+	return ret;
 }
 
 static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
