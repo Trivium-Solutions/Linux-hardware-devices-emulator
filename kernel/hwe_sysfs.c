@@ -237,8 +237,6 @@ static struct hwe_dev * new_dev(enum HWE_IFACE iface) {
 
 	/* format of directory name: <interface name> <index>, eg tty0 */
 
-	lock_iface_devs(iface);
-
 	idx = find_free_dev_index(iface);
 
 	if (idx < 0)
@@ -272,8 +270,6 @@ static struct hwe_dev * new_dev(enum HWE_IFACE iface) {
 		kobject_uevent(&ret->kobj, KOBJ_ADD);
 	}
 
-	unlock_iface_devs(iface);
-
 	return ret;
 }
 
@@ -293,15 +289,20 @@ static ssize_t iface_add_store(struct hwe_iface * iface,
 	if (!str_to_iface(iface_name, &ifc))
 		pr_err("%s/%s: unsupported interface: %s\n",
 			iface_name, filename, iface_name);
-	else
-	if (!(dev = new_dev(ifc)))
-		pr_err("%s/%s: couldn't create new device with interface %s\n",
-			iface_name, filename, iface_name);
 	else {
-		ret = count;
+		lock_iface_devs(ifc);
 
-		pr_debug("%s/%s: %s: new device created\n",
-			iface_name, filename, kobject_name(&dev->kobj));
+		if (!(dev = new_dev(ifc)))
+			pr_err("%s/%s: couldn't create new device with interface %s\n",
+				iface_name, filename, iface_name);
+		else {
+			ret = count;
+
+			pr_debug("%s/%s: %s: new device created\n",
+				iface_name, filename, kobject_name(&dev->kobj));
+		}
+
+		unlock_iface_devs(ifc);
 	}
 
 	return ret;
