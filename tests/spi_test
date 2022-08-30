@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+BASE_DIR=$(dirname "$(realpath "$0")")
+HWECTL=$(realpath "$(dirname "$0")/../control/hwectl")
+
+EXITCODE=1
+
+if [ -z "$1" ] ; then
+    echo "You must specify a config file name as a parameter"
+elif [ "$(id -u)" != "0" ] ; then
+    sudo "$0" $*
+    EXITCODE=$?
+elif "$HWECTL" start "$1" ; then
+    python3 "$BASE_DIR"/spi_test.py $*
+    EXITCODE=$?
+    "$HWECTL" stop
+fi
+
+exit $EXITCODE

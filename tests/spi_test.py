@@ -2,6 +2,16 @@
 import os
 import sys
 
+PROG_DIR = os.path.dirname(os.path.realpath(__file__))
+
+_IMPORT_DIRS = ('../control',)
+
+for d in _IMPORT_DIRS:
+    p = os.path.realpath('/'.join((PROG_DIR, d)))
+    if os.path.isdir(p):
+        sys.path.append(p)
+
+import hwectl
 import config_sysfs as config
 
 # https://github.com/romilly/quick2wire-python-api
@@ -14,76 +24,93 @@ def throw(msg):
 
 # ----------------------------------------------------------------------
 
-def is_module_loaded():
-    return config.is_module_loaded(config.KMOD_NAME)
-
-# ----------------------------------------------------------------------
-
-def load_module():
-    config.run(['insmod', '../kernel/' + config.KMOD_NAME + '.ko'])
-
-# ----------------------------------------------------------------------
-
-def unload_module():
-    config.run(['rmmod', config.KMOD_NAME])
-
-# ----------------------------------------------------------------------
-
 def spi_check_query(bus, cs, request, expected_response):
+    IND1 = ' ' * 8
+    IND2 = ' ' * 16
+
+    def hexlns(data):
+        s = config.bytes_to_hex_str(data)
+        ret = ''
+        W = 64
+        for i in range(0, len(s), W):
+            ret += IND2 + s[i: i + W]
+            if i + W < len(s):
+                ret += '\n'
+        return ret
+
     with SPIDevice(cs, bus) as spi:
         spi.transaction(writing(request))
         lst = spi.transaction(reading(len(expected_response)))
-        print('  Written data: ', config.bytes_to_hex_str(request))
-        print('  Expected data:', config.bytes_to_hex_str(expected_response))
-        print('  Read data:    ', config.bytes_to_hex_str(lst[0]))
-        return expected_response == lst[0]
+        ok = expected_response == lst[0]
 
-# ----------------------------------------------------------------------
+        print(IND1 + 'Written data:')
+        print(hexlns(request))
+        print(IND1 + 'Expected data:')
+        print(hexlns(expected_response))
+        print(IND1 + 'Read data:')
+        print(hexlns(lst[0]))
+        print(IND1 + 'Result:')
+        print(IND2 + (ok and '\033[32m*** PASSED ***\033[0m' or
+            '\033[31m*** FAILED ***\033[0m'))
 
-def sanity():
-    req = b'\x01\x02\x03\x04'
-    expected_resp = b'\xaa\xbb\xcc\xdd\xee\xff'
-
-    pair = config.bytes_to_hex_str(req) + '=' + config.bytes_to_hex_str(expected_resp)
-
-    sysfs_path = '/sys/kernel/' + config.KMOD_NAME + '/spi'
-
-    # add new emulated device
-    config.write_file(sysfs_path + '/add', '1')
-
-    # add new request-response pair
-    config.write_file(sysfs_path + '/spi0/add', pair)
-
-    passed = spi_check_query(0, 0, req, expected_resp)
-
-    print(passed and '  *** TEST PASSED ***' or '  *** TEST NOT PASSED ***')
-
-    return passed
+        return ok
 
 # ----------------------------------------------------------------------
 
 def main():
-    if os.geteuid() != 0:
-        args = ['sudo', sys.executable] + sys.argv + [os.environ]
-        os.execlpe('sudo', *args)
+    if len(sys.argv) != 2:
+        print('Usage:')
+        print('    $ hwectl start <ini-filename>')
+        print('    $ sudo python3 %s <ini-filename>' %
+            (os.path.basename(__file__)))
+        return 1
 
-    if is_module_loaded():
-        print(config.KMOD_NAME + ' is already loaded; will unload it first.')
-        unload_module()
+    exitcode = 0
 
-    if not config.is_spidev_loaded():
-        print('spidev is not loaded; will load it first.')
-        config.run(['modprobe', 'spidev'])
+    filename = sys.argv[1]
 
-    load_module()
+    cfg = hwectl.load_from_ini(filename)
 
-    try:
-        sanity()
+    def error(msg):
+        throw(('%s.\nMake sure the file "%s" has been loaded by using hwectl') %
+              (msg, filename))
 
-    finally:
-        unload_module()
+    def on_pair(iface_name, dev_name, pair_num, pair):
+        if iface_name != config.IF_SPI:
+            return
+
+        d = cfg[iface_name][dev_name].get('_extern_dev_name')
+        lnk = '/dev/' + d
+
+        if not os.path.islink(lnk):
+            error('File not found: ' + lnk)
+
+        tgt = os.path.realpath(lnk)
+
+        if not tgt.startswith('/dev/spidev'):
+            error('Wrong link: %s -> %s' % (lnk, tgt))
+
+        nums = tgt[len('/dev/spidev'):].split('.')
+
+        if len(nums) != 2 or not nums[0].isdigit() or not nums[1].isdigit():
+            error('Wrong link: %s -> %s' % (lnk, tgt))
+
+        p = pair.split('=')
+
+        print('\033[36m%s\033[0m:' % d)
+
+        ok = spi_check_query(int(nums[0]), int(nums[1]), bytes.fromhex(p[0]), bytes.fromhex(p[1]))
+
+        nonlocal exitcode
+
+        if not ok:
+            exitcode = 1
+
+    config.traverse_config(cfg, on_iface = None, on_dev = None, on_pair = on_pair)
+
+    return exitcode
 
 # ----------------------------------------------------------------------
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
