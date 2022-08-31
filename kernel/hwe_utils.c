@@ -105,8 +105,7 @@ const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pa
  */
 const char * pair_to_str(struct hwe_pair * pair)
 {
-	/* each hex digit takes 2 chars + '=' + terminating null */
-	static char buf[HWE_MAX_REQUEST * 2 + HWE_MAX_RESPONSE * 2 + 1 + 1];
+	static char buf[HWE_MAX_PAIR_STR + 1];
 	char * p = buf;
 
 	if (pair->req_size < 1 || pair->req_size > HWE_MAX_REQUEST)

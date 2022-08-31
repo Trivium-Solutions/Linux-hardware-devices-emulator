@@ -12,40 +12,13 @@
 #undef pr_fmt
 #endif
 
+#include "hwe_consts.h"
+
 /*! Log message format. */
 #define pr_fmt(fmt) DRIVER_NAME ": " fmt
 
 #define COUNTOF(a)      (sizeof(a)/sizeof((a)[0]))
 #define FOR_EACH(entry, list) for (entry = list; entry < list + COUNTOF(list); (entry)++)
-
-/*! Currently supported device types.
-    Start adding new interfaces from here. */
-#define HWE_FOREACH_IFACE(D) \
-	D(TTY, tty) \
-	D(I2C, i2c) \
-	D(NET, net) \
-	D(SPI, spi) \
-
-
-#define DEFINE_IFACE(__upper, __lower) HWE_##__upper,
-/*! Internal identifiers for device types. */
-enum HWE_IFACE {
-	HWE_FOREACH_IFACE(DEFINE_IFACE)
-	HWE_IFACE_COUNT
-};
-#undef DEFINE_IFACE
-
-/*! Maximum length of a request, given the maximum sysfs file size */
-#define	HWE_MAX_REQUEST	((4096 - 1) / 4)
-
-/*! Maximum length of a response, given the maximum sysfs file size */
-#define	HWE_MAX_RESPONSE	((4096 - 1) / 4)
-
-/*! Maximum number of key-value pairs that can be added to a device */
-#define	HWE_MAX_PAIRS	1000
-
-/*! Maximum number of devices per interface */
-#define	HWE_MAX_DEVICES	256
 
 /*! Generic device. */
 struct hwe_dev;

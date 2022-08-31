@@ -2,6 +2,7 @@ obj-m += hwemu.o
 
 hwemu-objs += hwe_main.o
 hwemu-objs += hwe_sysfs.o
+hwemu-objs += hwe_ioctl.o
 hwemu-objs += hwe_utils.o
 hwemu-objs += hwe_tty.o
 hwemu-objs += hwe_i2c.o
@@ -10,6 +11,7 @@ hwemu-objs += hwe_spi.o
 
 # use these to turn on debug messages in particular files
 #CFLAGS_hwe_sysfs.o := -DDEBUG
+#CFLAGS_hwe_ioctl.o := -DDEBUG
 #CFLAGS_hwe_tty.o := -DDEBUG
 #CFLAGS_hwe_i2c.o := -DDEBUG
 #CFLAGS_hwe_spi.o := -DDEBUG

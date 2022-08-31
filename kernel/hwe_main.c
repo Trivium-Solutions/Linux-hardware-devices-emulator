@@ -22,6 +22,8 @@
 
 extern int hwe_init_sysfs(void);
 extern void hwe_cleanup_sysfs(void);
+extern int hwe_init_ioctl(void);
+extern void hwe_cleanup_ioctl(void);
 
 /*! Declare init functions for each device type. */
 HWE_FOREACH_IFACE(DECL_INIT_FUNC)
@@ -34,6 +36,7 @@ HWE_FOREACH_IFACE(DECL_CLEANUP_FUNC)
 static int (* const init_funcs[])(void) = {
 	HWE_FOREACH_IFACE(INIT_FUNC_PTR)
 	hwe_init_sysfs,
+	hwe_init_ioctl,
 };
 
 /*! Array of pointers to various clean-up functions
@@ -42,6 +45,7 @@ static int (* const init_funcs[])(void) = {
 static void (* const cleanup_funcs[])(void) = {
 	HWE_FOREACH_IFACE(CLEANUP_FUNC_PTR)
 	hwe_cleanup_sysfs,
+	hwe_cleanup_ioctl,
 };
 
 #undef INIT_FUNC
