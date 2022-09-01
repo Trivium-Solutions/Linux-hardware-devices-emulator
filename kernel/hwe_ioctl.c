@@ -46,9 +46,9 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		case HWEIOCTL_WRITE_PAIR:
 			break;
-		case HWEIOCTL_DELETE:
+		case HWEIOCTL_DELETE_PAIR:
 			break;
-		case HWEIOCTL_CLEAR:
+		case HWEIOCTL_CLEAR_PAIRS:
 			break;
 		default:
 			err = -ENOTTY;

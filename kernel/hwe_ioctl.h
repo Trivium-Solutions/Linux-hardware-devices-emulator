@@ -69,13 +69,13 @@
         pair_index = index of the pair in the list.
     return: error code.
 */
-#define HWEIOCTL_DELETE                 (HWEIOCTL_MAGIC + 6)
+#define HWEIOCTL_DELETE_PAIR            (HWEIOCTL_MAGIC + 6)
 
 /*! Delete all request/response pairs.
     arg = unique device id.
     return: error code (negative).
 */
-#define HWEIOCTL_CLEAR                  (HWEIOCTL_MAGIC + 7)
+#define HWEIOCTL_CLEAR_PAIRS            (HWEIOCTL_MAGIC + 7)
 
 struct hweioctl_pair {
 	int device_id;
