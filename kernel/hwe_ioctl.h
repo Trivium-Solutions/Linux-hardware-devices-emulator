@@ -72,7 +72,7 @@
 #define HWEIOCTL_DELETE                 (HWEIOCTL_MAGIC + 6)
 
 /*! Delete all request/response pairs.
-    arg = interface type (0 = tty, 1 = i2c, etc).
+    arg = unique device id.
     return: error code (negative).
 */
 #define HWEIOCTL_CLEAR                  (HWEIOCTL_MAGIC + 7)

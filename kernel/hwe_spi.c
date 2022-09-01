@@ -38,11 +38,6 @@ static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *s
 	struct hwe_dev_priv *dev = spi_controller_get_devdata(ctlr);
 	struct hwe_pair *pair = NULL;
 
-//	pr_debug("%s()\n", __func__);
-//	pr_debug(" transfer->len == %u\n", transfer->len);
-//	pr_debug(" transfer->rx_buf == %p\n", transfer->rx_buf);
-//	pr_debug(" transfer->tx_buf == %p\n", transfer->tx_buf);
-
 	if (transfer->tx_buf) {
 		pair = find_response(dev->hwedev, transfer->tx_buf, transfer->len);
 
