@@ -40,7 +40,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			break;
 		case HWEIOCTL_UNINSTALL_DEVICE:
 			break;
-		case HWEIOCTL_COUNT:
+		case HWEIOCTL_PAIR_COUNT:
 			break;
 		case HWEIOCTL_READ_PAIR:
 			break;
