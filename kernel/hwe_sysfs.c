@@ -180,6 +180,30 @@ void unlock_devs(struct hwe_dev * dev)
 	unlock_iface_devs(dev->iface);
 }
 
+static struct hwe_dev * find_device(enum HWE_IFACE iface, const char * name)
+{
+	struct hwe_dev * dev;
+	struct list_head * dev_list = &ifaces[iface].dev_list;
+
+	list_for_each_entry (dev, dev_list, entry)
+		if (strcmp(kobject_name(&dev->kobj), name) == 0)
+			return dev;
+
+	return NULL;
+}
+
+static struct hwe_dev * find_device_by_index(enum HWE_IFACE iface, long index)
+{
+	struct hwe_dev * dev;
+	struct list_head * dev_list = &ifaces[iface].dev_list;
+
+	list_for_each_entry (dev, dev_list, entry)
+		if (dev->index == index)
+			return dev;
+
+	return NULL;
+}
+
 static struct hwe_dev * add_dev(enum HWE_IFACE iface, long index)
 {
 	struct hwe_dev * ret = kzalloc(sizeof(*ret), GFP_KERNEL);
@@ -331,18 +355,6 @@ static inline int copy_word(const char * src, size_t src_len, char * dst, size_t
 	*s = 0;
 
 	return s - dst;
-}
-
-static struct hwe_dev * find_device(enum HWE_IFACE iface, const char * name)
-{
-	struct hwe_dev * dev;
-	struct list_head * dev_list = &ifaces[iface].dev_list;
-
-	list_for_each_entry (dev, dev_list, entry)
-		if (strcmp(kobject_name(&dev->kobj), name) == 0)
-			return dev;
-
-	return NULL;
 }
 
 static ssize_t iface_uninstall_store(struct hwe_iface * iface,
