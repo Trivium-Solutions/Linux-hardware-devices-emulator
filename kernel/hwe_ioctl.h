@@ -26,7 +26,7 @@
     arg = unique device id.
     return: number of request/response pairs (zero or positive) or error code (negative).
 */
-#define HWEIOCTL_COUNT                  (HWEIOCTL_MAGIC + 3)
+#define HWEIOCTL_PAIR_COUNT             (HWEIOCTL_MAGIC + 3)
 
 /*! Return the list of request/response pairs.
     arg = pointer to a structure
