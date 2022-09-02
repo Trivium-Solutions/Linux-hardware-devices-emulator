@@ -22,12 +22,51 @@ static dev_t dev_number = 0;
 static struct class * class = NULL;
 static struct device * device = NULL;
 
+static inline long make_devid(enum HWE_IFACE iface, long index)
+{
+	return ((long)iface << 24) + index;
+}
+
+static inline int parse_devid(unsigned long devid, enum HWE_IFACE * iface, long * index)
+{
+	unsigned ifc = devid >> 24;
+	unsigned idx = devid & ((1 << 24) - 1);
+
+	if (ifc >= HWE_IFACE_COUNT || idx >= HWE_MAX_DEVICES)
+		return 0;
+
+	if (iface)
+		*iface = (enum HWE_IFACE)ifc;
+
+	if (index)
+		*index = idx;
+
+	return 1;
+}
+
 static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 
 static const struct file_operations hwemu_fops = {
 	.owner = THIS_MODULE,
 	.unlocked_ioctl = hwemu_ioctl,
 };
+
+extern long hwe_add_device(enum HWE_IFACE iface);
+
+static int ioctl_add_device(unsigned long arg)
+{
+	long idx;
+
+	if (arg >= HWE_IFACE_COUNT)
+		return -EINVAL;
+
+	idx = hwe_add_device((enum HWE_IFACE)arg);
+
+	if (idx < 0)
+		return idx;
+
+	return make_devid((enum HWE_IFACE)arg, idx);
+}
 
 static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -37,6 +76,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 		case HWEIOCTL_ADD_DEVICE:
+			err = ioctl_add_device(arg);
 			break;
 		case HWEIOCTL_UNINSTALL_DEVICE:
 			break;

@@ -332,6 +332,23 @@ static ssize_t iface_add_store(struct hwe_iface * iface,
 	return ret;
 }
 
+long hwe_add_device(enum HWE_IFACE iface)
+{
+	struct hwe_dev * dev;
+	long ret;
+
+	lock_iface_devs(iface);
+
+	if (!(dev = new_dev(iface)))
+		ret = -ENODEV;
+	else
+		ret = dev->index;
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 static inline int copy_word(const char * src, size_t src_len, char * dst, size_t dst_len)
 {
 	char * s;
