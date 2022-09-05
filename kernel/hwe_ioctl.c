@@ -52,6 +52,7 @@ static const struct file_operations hwemu_fops = {
 };
 
 extern long hwe_add_device(enum HWE_IFACE iface);
+extern int hwe_delete_device(enum HWE_IFACE iface, long dev_index);
 
 static int ioctl_add_device(unsigned long arg)
 {
@@ -68,6 +69,17 @@ static int ioctl_add_device(unsigned long arg)
 	return make_devid((enum HWE_IFACE)arg, idx);
 }
 
+static int ioctl_delete_device(unsigned long arg)
+{
+	enum HWE_IFACE ifc;
+	long idx;
+
+	if (!parse_devid(arg, &ifc, &idx))
+		return -EINVAL;
+
+	return hwe_delete_device(ifc, idx);
+}
+
 static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
@@ -79,6 +91,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			err = ioctl_add_device(arg);
 			break;
 		case HWEIOCTL_UNINSTALL_DEVICE:
+			err = ioctl_delete_device(arg);
 			break;
 		case HWEIOCTL_PAIR_COUNT:
 			break;

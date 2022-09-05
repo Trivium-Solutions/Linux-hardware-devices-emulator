@@ -416,6 +416,26 @@ static ssize_t iface_uninstall_store(struct hwe_iface * iface,
 	return ret;
 }
 
+int hwe_delete_device(enum HWE_IFACE iface, long dev_index)
+{
+	struct hwe_dev * dev;
+	int ret;
+
+	lock_iface_devs(iface);
+
+	if (!(dev = find_device_by_index(iface, dev_index)))
+		ret = -ENODEV;
+	else {
+		shutdown_dev(dev);
+
+		ret = 0;
+	}
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 #define PERMS_RO 0444
 #define PERMS_WO 0200
 #define PERMS_RW 0664
