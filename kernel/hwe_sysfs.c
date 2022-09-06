@@ -693,6 +693,67 @@ static ssize_t dev_add_store(struct hwe_dev * dev,
 	return ret;
 }
 
+/* FIXME This function is practically a duplicate of the above
+ * dev_add_store. We need it to provide a similar IOCTL function.
+ * It would be nice to somehow rewrite them both to eliminate
+ * this duplicate code. */
+long hwe_add_pair(enum HWE_IFACE iface, long dev_index, const char * pair_str)
+{
+	long ret = -EINVAL;
+	const char * err;
+	struct hwe_pair * pair;
+	struct hwe_pair * p;
+	long idx;
+	struct hwe_dev * dev;
+
+	lock_iface_devs(iface);
+
+	if (!(dev = find_device_by_index(iface, dev_index)))
+		ret = -ENODEV;
+	if (!(pair = kmalloc(sizeof(*pair), GFP_KERNEL)))
+		ret = -ENOMEM;
+	else
+	if (!!(err = str_to_pair(pair_str, strlen(pair_str), pair)))
+		ret = -EINVAL;
+	else
+	if ((idx = find_first_zero_bit(dev->pairs_indexes, HWE_MAX_PAIRS))
+	     == HWE_MAX_PAIRS)
+		ret = -E2BIG;
+	else
+	if (!!(p = find_pair(&dev->pair_list, pair->req, pair->req_size)))
+		ret = -EEXIST;
+	else {
+		struct kobj_attribute * f;
+
+		pair->dev = dev;
+		pair->index = idx;
+		snprintf(pair->filename, sizeof(pair->filename),
+			"%ld", idx);
+
+		f = &pair->pair_file;
+		f->attr.name = pair->filename;
+		f->attr.mode = 0444;
+		f->show = pair_show;
+
+		ret = sysfs_create_file(dev->pairs_kobj, &f->attr);
+
+		if (ret)
+			/* error */;
+		else {
+			set_bit(idx, dev->pairs_indexes);
+			list_add_tail(&pair->entry, &dev->pair_list);
+			ret = idx;
+		}
+	}
+
+	if (ret < 0)
+		kfree(pair);
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 static ssize_t dev_delete_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {

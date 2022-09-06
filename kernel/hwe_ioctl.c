@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/printk.h>
 #include <linux/cdev.h>
@@ -53,6 +54,7 @@ static const struct file_operations hwemu_fops = {
 
 extern long hwe_add_device(enum HWE_IFACE iface);
 extern int hwe_delete_device(enum HWE_IFACE iface, long dev_index);
+extern long hwe_add_pair(enum HWE_IFACE iface, long dev_index, const char * pair_str);
 
 static int ioctl_add_device(unsigned long arg)
 {
@@ -80,6 +82,45 @@ static int ioctl_delete_device(unsigned long arg)
 	return hwe_delete_device(ifc, idx);
 }
 
+static int ioctl_write_pair(unsigned long arg)
+{
+	struct hweioctl_pair __user * hp = (struct hweioctl_pair __user *)arg;
+	int devid;
+	enum HWE_IFACE ifc;
+	long dev_idx;
+	char * pair_str;
+	int ret;
+
+	if (get_user(devid, &hp->device_id))
+		return -EFAULT;
+
+	if (!parse_devid(devid, &ifc, &dev_idx))
+		return -EINVAL;
+
+	pair_str =  kmalloc(HWE_MAX_PAIR_STR + 1, GFP_KERNEL);
+
+	if (!pair_str)
+		return -ENOMEM;
+
+	if (copy_from_user(pair_str, &hp->pair, HWE_MAX_PAIR_STR))
+		return -EFAULT;
+
+	/* terminating null, just in case */
+	pair_str[HWE_MAX_PAIR_STR] = 0;
+
+	ret = hwe_add_pair(ifc, dev_idx, pair_str);
+
+	kfree(pair_str);
+
+	if (ret < 0)
+		return ret;
+
+	if (put_user(ret, &hp->pair_index))
+		return -EFAULT;
+
+	return 0;
+}
+
 static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
@@ -98,6 +139,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		case HWEIOCTL_READ_PAIR:
 			break;
 		case HWEIOCTL_WRITE_PAIR:
+			err = ioctl_write_pair(arg);
 			break;
 		case HWEIOCTL_DELETE_PAIR:
 			break;
