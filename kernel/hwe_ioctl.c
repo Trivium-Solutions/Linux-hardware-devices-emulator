@@ -55,6 +55,7 @@ static const struct file_operations hwemu_fops = {
 extern long hwe_add_device(enum HWE_IFACE iface);
 extern int hwe_delete_device(enum HWE_IFACE iface, long dev_index);
 extern long hwe_add_pair(enum HWE_IFACE iface, long dev_index, const char * pair_str);
+extern int hwe_get_pair_count(enum HWE_IFACE iface, long dev_index);
 
 static int ioctl_add_device(unsigned long arg)
 {
@@ -80,6 +81,17 @@ static int ioctl_delete_device(unsigned long arg)
 		return -EINVAL;
 
 	return hwe_delete_device(ifc, idx);
+}
+
+static int ioctl_pair_count(unsigned long arg)
+{
+	enum HWE_IFACE ifc;
+	long idx;
+
+	if (!parse_devid(arg, &ifc, &idx))
+		return -EINVAL;
+
+	return hwe_get_pair_count(ifc, idx);
 }
 
 static int ioctl_write_pair(unsigned long arg)
@@ -135,6 +147,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			err = ioctl_delete_device(arg);
 			break;
 		case HWEIOCTL_PAIR_COUNT:
+			err = ioctl_pair_count(arg);
 			break;
 		case HWEIOCTL_READ_PAIR:
 			break;
