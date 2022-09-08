@@ -646,6 +646,34 @@ static ssize_t pair_show(struct kobject *kobj, struct kobj_attribute *attr, char
 	return sprintf(buf, "ERROR: pair with index %ld not found!", idx);
 }
 
+int hwe_get_pair(enum HWE_IFACE iface, long dev_index, long pair_index,
+	char * pair_str)
+{
+	int ret = -ENODEV;
+	struct hwe_dev * dev;
+	struct hwe_pair * pair;
+	long idx;
+
+	lock_iface_devs(iface);
+
+	dev = find_device_by_index(iface, dev_index);
+
+	if (dev) {
+		ret = -ENOENT;
+
+		list_for_each_entry (pair, &dev->pair_list, entry)
+			if (pair->index == idx) {
+				ret = snprintf(pair_str, HWE_MAX_PAIR_STR + 1,
+					"%s", pair_to_str(pair));
+				break;
+			}
+	}
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 static ssize_t dev_add_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {

@@ -56,6 +56,7 @@ extern long hwe_add_device(enum HWE_IFACE iface);
 extern int hwe_delete_device(enum HWE_IFACE iface, long dev_index);
 extern long hwe_add_pair(enum HWE_IFACE iface, long dev_index, const char * pair_str);
 extern int hwe_get_pair_count(enum HWE_IFACE iface, long dev_index);
+extern int hwe_get_pair(enum HWE_IFACE iface, long dev_index, long pair_index, char * pair_str);
 
 static int ioctl_add_device(unsigned long arg)
 {
@@ -92,6 +93,44 @@ static int ioctl_pair_count(unsigned long arg)
 		return -EINVAL;
 
 	return hwe_get_pair_count(ifc, idx);
+}
+
+static int ioctl_read_pair(unsigned long arg)
+{
+	struct hweioctl_pair __user * hp = (struct hweioctl_pair __user *)arg;
+	int devid;
+	enum HWE_IFACE ifc;
+	long dev_idx;
+	int pair_idx;
+	char * pair_str;
+	int ret;
+
+	if (get_user(devid, &hp->device_id))
+		return -EFAULT;
+
+	if (!parse_devid(devid, &ifc, &dev_idx))
+		return -EINVAL;
+
+	if (get_user(pair_idx, &hp->pair_index))
+		return -EFAULT;
+
+	pair_str =  kmalloc(HWE_MAX_PAIR_STR + 1, GFP_KERNEL);
+
+	if (!pair_str)
+		return -ENOMEM;
+
+	ret = hwe_get_pair(ifc, dev_idx, pair_idx, pair_str);
+
+	if (ret > 0) {
+		if (copy_to_user(&hp->pair, pair_str, ret + 1))
+			ret = -EFAULT;
+		else
+			ret = 0;
+	}
+
+	kfree(pair_str);
+
+	return ret;
 }
 
 static int ioctl_write_pair(unsigned long arg)
@@ -150,6 +189,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			err = ioctl_pair_count(arg);
 			break;
 		case HWEIOCTL_READ_PAIR:
+			err = ioctl_read_pair(arg);
 			break;
 		case HWEIOCTL_WRITE_PAIR:
 			err = ioctl_write_pair(arg);
