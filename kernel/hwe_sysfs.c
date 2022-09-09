@@ -833,6 +833,29 @@ static ssize_t dev_delete_store(struct hwe_dev * dev,
 	return ret;
 }
 
+int hwe_delete_pair(enum HWE_IFACE iface, long dev_index, long pair_index)
+{
+	int ret;
+	struct hwe_dev * dev;
+	struct hwe_pair * pair;
+
+	lock_iface_devs(iface);
+
+	if (!(dev = find_device_by_index(iface, dev_index)))
+		ret = -ENODEV;
+	else
+	if (!(pair = get_pair_at_index(&dev->pair_list, pair_index)))
+		ret = -ENOENT;
+	else {
+		pair_delete(pair);
+		ret = 0;
+	}
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 static ssize_t dev_clear_store(struct hwe_dev * dev,
 	struct dev_attribute * attr, const char * buf, size_t count)
 {
