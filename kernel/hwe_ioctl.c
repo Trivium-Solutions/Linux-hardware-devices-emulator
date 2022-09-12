@@ -58,6 +58,7 @@ extern long hwe_add_pair(enum HWE_IFACE iface, long dev_index, const char * pair
 extern int hwe_get_pair_count(enum HWE_IFACE iface, long dev_index);
 extern int hwe_get_pair(enum HWE_IFACE iface, long dev_index, long pair_index, char * pair_str);
 extern int hwe_delete_pair(enum HWE_IFACE iface, long dev_index, long pair_index);
+extern int hwe_clear_pairs(enum HWE_IFACE iface, long dev_index);
 
 static int ioctl_add_device(unsigned long arg)
 {
@@ -193,6 +194,17 @@ static int ioctl_delete_pair(unsigned long arg)
 	return hwe_delete_pair(ifc, dev_idx, pair_idx);
 }
 
+static int ioctl_clear_pairs(unsigned long arg)
+{
+	enum HWE_IFACE ifc;
+	long dev_idx;
+
+	if (!parse_devid(arg, &ifc, &dev_idx))
+		return -EINVAL;
+
+	return hwe_clear_pairs(ifc, dev_idx);
+}
+
 static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
@@ -219,6 +231,7 @@ static long hwemu_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			err = ioctl_delete_pair(arg);
 			break;
 		case HWEIOCTL_CLEAR_PAIRS:
+			err = ioctl_clear_pairs(arg);
 			break;
 		default:
 			err = -ENOTTY;

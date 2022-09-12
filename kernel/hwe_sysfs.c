@@ -871,6 +871,25 @@ static ssize_t dev_clear_store(struct hwe_dev * dev,
 	return count;
 }
 
+int hwe_clear_pairs(enum HWE_IFACE iface, long dev_index)
+{
+	int ret;
+	struct hwe_dev * dev;
+
+	lock_iface_devs(iface);
+
+	if (!(dev = find_device_by_index(iface, dev_index)))
+		ret = -ENODEV;
+	else {
+		clear_pairs(dev);
+		ret = 0;
+	}
+
+	unlock_iface_devs(iface);
+
+	return ret;
+}
+
 /* All attributes (files in a sysfs directory) for the device.
  * If you want to add/remove a device attribute, you should start here. */
 #define FOREACH_DEV_ATTR(A)\
