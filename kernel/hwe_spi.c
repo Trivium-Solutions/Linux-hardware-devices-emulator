@@ -11,11 +11,19 @@
 #include <linux/errno.h>
 #include <linux/uaccess.h>
 #include <linux/spi/spi.h>
+#include <linux/version.h>
 
 #include <linux/of.h>
 #include <linux/platform_device.h>
 
 #include "hwemu.h"
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0))
+
+#define spi_controller_get_devdata(_ctlr) spi_master_get_devdata(_ctlr)
+#define spi_controller spi_master
+
+#endif
 
 /*! Private data for the SPI device */
 struct hwe_dev_priv {

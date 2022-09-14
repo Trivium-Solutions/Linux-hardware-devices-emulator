@@ -404,7 +404,12 @@ def ifaces_init(config):
     with os.scandir('/sys/bus/spi/devices') as it:
         for e in it:
             if e.is_symlink() and '/hwe_plat/' in os.path.realpath(e.path):
-                write_file('/sys/bus/spi/devices/%s/driver_override' % e.name, 'spidev')
+                ovrr_file = '/sys/bus/spi/devices/%s/driver_override' % e.name
+                if not os.path.isfile(ovrr_file):
+                    throw('We can\'t create emulated SPI devices since your kernel '+
+                        'doesn\'t support SPI driver overriding. Please upgrade '+
+                        'to kernel version 4.20 or later.')
+                write_file(ovrr_file, 'spidev')
                 write_file('/sys/bus/spi/drivers/spidev/bind', e.name)
 
     # collect the symlinks
