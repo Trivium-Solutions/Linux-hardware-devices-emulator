@@ -2,7 +2,7 @@
 
 Linux Emulator of arbitrary hardware devices. This software can be used to
 emulate hardware devices for testing purposes. Currently, it supports simple
-request/respose communication (request initiated from userspace, kernel module 
+request/respose communication (request initiated from userspace, kernel module
 returns a response according to configuration).
 
 
@@ -19,6 +19,7 @@ devices:
 - tty
 - i2c
 - network
+- spi
 
 The control utility is responsible for configuring the kernel module.
 
@@ -88,8 +89,9 @@ device doesn't already exist).
 The section names must match certain patterns:
 
 - `ttyUSB*` for TTY devices;
-- `i2c-*` for I2C devices.
-- `eth*` for network devices.
+- `i2c-*` for I2C devices;
+- `eth*` for network devices;
+- `spi-*` for SPI devices.
 
 Any other names are considered invalid.
 
