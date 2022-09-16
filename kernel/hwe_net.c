@@ -180,4 +180,7 @@ void hwe_cleanup_net(void)
 	pr_info("net driver unloaded\n");
 }
 
+void hwe_net_timer_func(long jiffies)
+{
 
+}

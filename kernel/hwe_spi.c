@@ -262,3 +262,7 @@ void hwe_cleanup_spi(void)
 	pr_info("spi driver unloaded\n");
 }
 
+void hwe_spi_timer_func(long jiffies)
+{
+
+}

@@ -398,4 +398,7 @@ void hwe_cleanup_i2c(void)
 	pr_info("i2c driver unloaded\n");
 }
 
+void hwe_i2c_timer_func(long jiffies)
+{
 
+}
