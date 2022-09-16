@@ -20,23 +20,29 @@
 #define INIT_FUNC_PTR(__upper, __lower) hwe_init_##__lower,
 #define CLEANUP_FUNC_PTR(__upper, __lower) hwe_cleanup_##__lower,
 
-extern int hwe_init_sysfs(void);
-extern void hwe_cleanup_sysfs(void);
-extern int hwe_init_ioctl(void);
-extern void hwe_cleanup_ioctl(void);
-
 /*! Declare init functions for each device type. */
 HWE_FOREACH_IFACE(DECL_INIT_FUNC)
 
 /*! Declare clean-up functions for each device type. */
 HWE_FOREACH_IFACE(DECL_CLEANUP_FUNC)
 
+/*! Internal statically linked units */
+#define HWE_FOREACH_UNIT(U) \
+	U(ASYNC, async) \
+	U(SYSFS, sysfs) \
+	U(IOCTL, ioctl) \
+
+/*! Declare init functions for each internal unit. */
+HWE_FOREACH_UNIT(DECL_INIT_FUNC)
+
+/*! Declare clean-up functions for each internal unit. */
+HWE_FOREACH_UNIT(DECL_CLEANUP_FUNC)
+
 /*! Array of pointers to various initialization functions
    that must be called at load time. */
 static int (* const init_funcs[])(void) = {
 	HWE_FOREACH_IFACE(INIT_FUNC_PTR)
-	hwe_init_sysfs,
-	hwe_init_ioctl,
+	HWE_FOREACH_UNIT(INIT_FUNC_PTR)
 };
 
 /*! Array of pointers to various clean-up functions
@@ -44,8 +50,7 @@ static int (* const init_funcs[])(void) = {
    must be called in reverse order! */
 static void (* const cleanup_funcs[])(void) = {
 	HWE_FOREACH_IFACE(CLEANUP_FUNC_PTR)
-	hwe_cleanup_sysfs,
-	hwe_cleanup_ioctl,
+	HWE_FOREACH_UNIT(CLEANUP_FUNC_PTR)
 };
 
 #undef INIT_FUNC

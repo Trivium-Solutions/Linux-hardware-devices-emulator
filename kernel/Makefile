@@ -8,6 +8,7 @@ hwemu-objs += hwe_tty.o
 hwemu-objs += hwe_i2c.o
 hwemu-objs += hwe_net.o
 hwemu-objs += hwe_spi.o
+hwemu-objs += hwe_async.o
 
 # use these to turn on debug messages in particular files
 #CFLAGS_hwe_sysfs.o := -DDEBUG
@@ -15,6 +16,7 @@ hwemu-objs += hwe_spi.o
 #CFLAGS_hwe_tty.o := -DDEBUG
 #CFLAGS_hwe_i2c.o := -DDEBUG
 #CFLAGS_hwe_spi.o := -DDEBUG
+#CFLAGS_hwe_async.o := -DDEBUG
 
 # use these to add any global flags
 #MY_FLAGS += -g -DDEBUG
