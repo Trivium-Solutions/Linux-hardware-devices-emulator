@@ -31,9 +31,6 @@ static void timer_func(struct timer_list *t)
 
 	//pr_debug("jiffies: %lu\n", j);
 
-#define TIMER_FUNC_CALL(__upper, __lower) hwe_##__lower##_timer_func(j),
-	HWE_FOREACH_IFACE(TIMER_FUNC_CALL)
-#undef TIMER_FUNC_CALL
 
 	t->expires = j + PERIOD;
 	add_timer(t);

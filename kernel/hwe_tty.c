@@ -277,25 +277,5 @@ void hwe_cleanup_tty(void)
 
 void hwe_tty_timer_func(long jiffies)
 {
-	static const char data[] =
-		"\x1B\xA1\xA3\x05\x02\x0A\x00\x00\x02\x00\x00\x00\x03\x00\x00\x00\x1B\xB0\x00\x00";
-	size_t size = sizeof(data) - 1;
-	int i;
 
-	lock_iface_devs(HWE_TTY);
-
-	/* XXX */
-	for (i = 0; i < HWE_MAX_DEVICES; i++)
-		if (devices[i]) {
-			struct tty_port * p = &ports[devices[i]->index];
-
-			pr_debug(" --- tty send\n");
-
-			tty_insert_flip_string_fixed_flag(p, data,
-				TTY_NORMAL, size);
-			tty_flip_buffer_push(p);
-		}
-	/* XXX */
-
-	unlock_iface_devs(HWE_TTY);
 }
