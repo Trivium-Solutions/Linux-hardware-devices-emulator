@@ -180,6 +180,31 @@ void unlock_devs(struct hwe_dev * dev)
 	unlock_iface_devs(dev->iface);
 }
 
+struct hwe_dev * find_first_device(enum HWE_IFACE iface)
+{
+	struct list_head * dev_list = &ifaces[iface].dev_list;
+
+	if (list_empty(dev_list))
+		return NULL;
+
+	return list_entry(dev_list->next, struct hwe_dev, entry);
+}
+
+struct hwe_dev * find_next_device(enum HWE_IFACE iface, struct hwe_dev * device)
+{
+	struct list_head * dev_list = &ifaces[iface].dev_list;
+
+	if (device->entry.next == dev_list)
+		return NULL;
+
+	return list_entry(device->entry.next, struct hwe_dev, entry);
+}
+
+struct list_head * get_pair_list(struct hwe_dev * dev)
+{
+	return &dev->pair_list;
+}
+
 static struct hwe_dev * find_device(enum HWE_IFACE iface, const char * name)
 {
 	struct hwe_dev * dev;

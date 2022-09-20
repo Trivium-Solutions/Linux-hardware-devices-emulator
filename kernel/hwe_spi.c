@@ -262,7 +262,7 @@ void hwe_cleanup_spi(void)
 	pr_info("spi driver unloaded\n");
 }
 
-void hwe_spi_timer_func(long jiffies)
+void hwe_spi_async_rx(struct hwe_dev * device, struct hwe_pair * pair)
 {
 
 }

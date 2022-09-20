@@ -275,7 +275,7 @@ void hwe_cleanup_tty(void)
 	pr_info("tty driver unloaded\n");
 }
 
-void hwe_tty_timer_func(long jiffies)
+void hwe_tty_async_rx(struct hwe_dev * device, struct hwe_pair * pair)
 {
 
 }
