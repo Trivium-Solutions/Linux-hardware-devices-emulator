@@ -41,6 +41,80 @@ int str_to_iface(const char * str, enum HWE_IFACE * iface)
 	return 1;
 }
 
+/*! Returns non-zero if \a str is a string of hexadecimal numeric characters. */
+static inline int is_hex_str(const char * str, size_t size)
+{
+	size_t i;
+
+	for (i = 0; i < size; i++)
+		if (!isxdigit((unsigned char)str[i]))
+			return 0;
+
+	return 1;
+}
+
+/*! Parses a time representation in the format 1h2m3s and returns time
+ * in seconds. On error, 0 is returned.
+ */
+static inline unsigned parse_time_str(const char * str, const char ** end_ptr)
+{
+	static const struct pattern_struct {
+		char ch;
+		unsigned long max;
+		unsigned long mult;
+	}
+	pattern[] = {
+		{ .ch = 'h', .max = ULONG_MAX, .mult = 60*60 },
+		{ .ch = 'm', .max = 59, .mult = 60 },
+		{ .ch = 's', .max = 59, .mult = 1 },
+		{ .ch = 0, },
+	};
+	const struct pattern_struct * p = 0;
+	const char * s = str;
+	unsigned long ret = 0;
+	char *ep;
+	unsigned long n;
+
+	do {
+		n = simple_strtoul(s, &ep, 10);
+		if (p) {
+			if (p->ch != *ep) {
+				/* error: invalid time unit */
+				ret = 0;
+				break;
+			}
+		}
+		else {
+			for (p = pattern; p->ch; p++)
+				if (p->ch == *ep)
+					break;
+			if (!p->ch)
+				/* error: invalid time unit */
+				break;
+		}
+
+		s = ++ep;
+
+		if (n > p->max) {
+			/* error: invalid time value */
+			ret = 0;
+			break;
+		}
+
+		ret += n * p->mult;
+		p++;
+	}
+	while (p->ch && *s);
+
+	if (*s != 0 && *s != ',' && *s != '=')
+		ret = 0;
+
+	if (end_ptr)
+		*end_ptr = ep;
+
+	return ret;
+}
+
 /*! Key-value string parser
  */
 const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pair)
