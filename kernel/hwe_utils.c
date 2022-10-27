@@ -9,6 +9,7 @@
 #	include <linux/list.h>
 #	include <linux/string.h>
 #	include <linux/ctype.h>
+#	include <linux/jiffies.h>
 #else
 #	include <kernel_utils.h>
 #endif
@@ -181,7 +182,8 @@ const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pa
 
 		pair->req_size = 0;
 		pair->async_rx = true;
-		pair->period = t;
+		pair->period = msecs_to_jiffies(t * 1000);
+		pair->time = 0;
 	}
 
 	sz++; e++; /* '=' */
@@ -227,7 +229,7 @@ const char * pair_to_str(struct hwe_pair * pair)
 
 	if (pair->async_rx) {
 		/* XXX only a time value for now */
-		p = hwe_time_to_str(p, sizeof(buf), pair->period);
+		p = hwe_time_to_str(p, sizeof(buf), jiffies_to_msecs(pair->period) / 1000);
 	}
 	else
 		p = bin2hex(p, pair->req, pair->req_size);

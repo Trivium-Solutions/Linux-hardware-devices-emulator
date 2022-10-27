@@ -10,6 +10,7 @@
 #include <linux/device.h>
 #include <linux/printk.h>
 #include <linux/uaccess.h>
+#include <linux/jiffies.h>
 
 #include "hwemu.h"
 
@@ -34,10 +35,8 @@ static struct timer_list timer;
 
 static void timer_func(struct timer_list *t)
 {
-	long jiff = jiffies;
+	unsigned long jiff = jiffies;
 	enum HWE_IFACE ifc;
-
-	//pr_debug("jiffies: %lu\n", jiff);
 
 	for (ifc = 0; ifc < HWE_IFACE_COUNT; ifc++) {
 		struct hwe_dev * dev;
@@ -51,8 +50,20 @@ static void timer_func(struct timer_list *t)
 			struct hwe_pair * p;
 
 			list_for_each_entry (p, pairs, entry) {
+				unsigned long j;
 
-//				async_rx[ifc](dev, p);
+				if (!p->async_rx)
+					continue;
+
+				j = p->time ? p->time + p->period : jiff;
+
+				if (time_after_eq(jiff, j)) {
+					p->time = j;
+
+					//pr_debug("%s: async_rx, t=%lu\n", iface_to_str(ifc), jiff);
+
+					async_rx[ifc](dev, p);
+				}
 			}
 
 			dev = find_next_device(ifc, dev);

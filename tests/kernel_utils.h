@@ -20,10 +20,12 @@
 /* Kernel list implementation for userspace. */
 #include "list.h"
 
+/* Some compatibility macros */
 #define likely
 #define unlikely
-
 #define simple_strtoul strtoul
+#define jiffies_to_msecs
+#define msecs_to_jiffies
 
 typedef uint8_t u8;
 typedef uint16_t u16;
