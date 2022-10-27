@@ -56,7 +56,7 @@ static inline int is_hex_str(const char * str, size_t size)
 /*! Parses a time representation in the format 1h2m3s and returns time
  * in seconds. On error, 0 is returned.
  */
-static inline unsigned parse_time_str(const char * str, const char ** end_ptr)
+static inline unsigned hwe_str_to_time(const char * str, const char ** end_ptr)
 {
 	static const struct pattern_struct {
 		char ch;
@@ -93,24 +93,47 @@ static inline unsigned parse_time_str(const char * str, const char ** end_ptr)
 				break;
 		}
 
-		s = ++ep;
-
 		if (n > p->max) {
 			/* error: invalid time value */
 			ret = 0;
+			ep = (char *)s;
 			break;
 		}
 
+		s = ++ep;
 		ret += n * p->mult;
 		p++;
 	}
 	while (p->ch && *s);
 
 	if (*s != 0 && *s != ',' && *s != '=')
+		/* error: invalid separator */
 		ret = 0;
 
 	if (end_ptr)
 		*end_ptr = ep;
+
+	return ret;
+}
+
+/*! Returns a HMS representation of time.
+ */
+static inline const char * hwe_time_to_str(unsigned t)
+{
+	int h, m, s;
+	static char ret[32];
+
+	h = t / 3600;
+	m = (t - 3600 * h) / 60;
+	s = t - 3600 * h - m * 60;
+
+	if (h)
+		snprintf(ret, sizeof(ret), "%uh%dm%ds", h, m, s);
+	else
+	if (m)
+		snprintf(ret, sizeof(ret), "%dm%ds", m, s);
+	else
+		snprintf(ret, sizeof(ret), "%ds", s);
 
 	return ret;
 }
