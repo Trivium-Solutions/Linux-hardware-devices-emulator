@@ -13,11 +13,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <limits.h>
 #include <ctype.h>
 
 /* Kernel list implementation for userspace. */
 #include "list.h"
+
+#define likely
+#define unlikely
 
 #define simple_strtoul strtoul
 
@@ -31,6 +35,8 @@ struct kobj_attribute {
 
 extern int hex2bin(u8 *dst, const char *src, size_t count);
 extern char *bin2hex(char *dst, const void *src, size_t count);
+extern int scnprintf(char *buf, size_t size, const char *fmt, ...);
+extern int vscnprintf(char *buf, size_t size, const char *fmt, va_list args);
 
 extern char *strnchr(const char *s, size_t count, int c);
 

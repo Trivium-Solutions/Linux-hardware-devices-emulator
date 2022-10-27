@@ -103,10 +103,11 @@ static inline unsigned hwe_str_to_time(const char * str, const char ** end_ptr)
 		s = ++ep;
 		ret += n * p->mult;
 		p++;
+#define IS_SEP(c) ((c) == 0 || (c) == ',' || (c) == '=')
 	}
-	while (p->ch && *s);
+	while (p->ch && !IS_SEP(*s));
 
-	if (*s != 0 && *s != ',' && *s != '=')
+	if (!IS_SEP(*s))
 		/* error: invalid separator */
 		ret = 0;
 
@@ -118,24 +119,23 @@ static inline unsigned hwe_str_to_time(const char * str, const char ** end_ptr)
 
 /*! Returns a HMS representation of time.
  */
-static inline const char * hwe_time_to_str(unsigned t)
+static inline char * hwe_time_to_str(char * str, size_t size, unsigned t)
 {
-	int h, m, s;
-	static char ret[32];
+	int n, h, m, s;
 
 	h = t / 3600;
 	m = (t - 3600 * h) / 60;
 	s = t - 3600 * h - m * 60;
 
 	if (h)
-		snprintf(ret, sizeof(ret), "%uh%dm%ds", h, m, s);
+		n = scnprintf(str, size, "%uh%dm%ds", h, m, s);
 	else
 	if (m)
-		snprintf(ret, sizeof(ret), "%dm%ds", m, s);
+		n = scnprintf(str, size, "%dm%ds", m, s);
 	else
-		snprintf(ret, sizeof(ret), "%ds", s);
+		n = scnprintf(str, size, "%ds", s);
 
-	return ret;
+	return str + n;
 }
 
 /*! Key-value string parser
@@ -159,16 +159,30 @@ const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pa
 	if (!sz)
 		return "empty request";
 
-	if (sz > HWE_MAX_REQUEST * 2)
-		return "request string too long";
+	if (is_hex_str(s, sz)) {
+		if (sz > HWE_MAX_REQUEST * 2)
+			return "request string too long";
 
-	if (sz & 1)
-		return "odd number of characters in request string";
+		if (sz & 1)
+			return "odd number of characters in request string";
 
-	if (hex2bin(pair->req, s, sz / 2))
-		return "invalid character in request string";
+		if (hex2bin(pair->req, s, sz / 2))
+			return "invalid character in request string";
 
-	pair->req_size = sz / 2;
+		pair->req_size = sz / 2;
+		pair->async_rx = false;
+	}
+	else {
+		/* XXX only a time value for now */
+		unsigned t = hwe_str_to_time(s, 0);
+
+		if (!t)
+			return "invalid data definition";
+
+		pair->req_size = 0;
+		pair->async_rx = true;
+		pair->period = t;
+	}
 
 	sz++; e++; /* '=' */
 
@@ -205,13 +219,18 @@ const char * pair_to_str(struct hwe_pair * pair)
 	static char buf[HWE_MAX_PAIR_STR + 1];
 	char * p = buf;
 
-	if (pair->req_size < 1 || pair->req_size > HWE_MAX_REQUEST)
+	if (!pair->async_rx && (pair->req_size < 1 || pair->req_size > HWE_MAX_REQUEST))
 		return "error: request size out of valid range";
 
 	if (pair->resp_size < 1 || pair->resp_size > HWE_MAX_RESPONSE)
 		return "error: response size out of valid range";
 
-	p = bin2hex(p, pair->req, pair->req_size);
+	if (pair->async_rx) {
+		/* XXX only a time value for now */
+		p = hwe_time_to_str(p, sizeof(buf), pair->period);
+	}
+	else
+		p = bin2hex(p, pair->req, pair->req_size);
 
 	*p++ = '=';
 
@@ -227,7 +246,8 @@ struct hwe_pair * find_pair(struct list_head * list, const unsigned char * reque
 	struct hwe_pair * ret;
 
 	list_for_each_entry (ret, list, entry) {
-		if (ret->req_size == req_size &&
+		/* XXX skip the pairs used in asynchronous data exchange */
+		if (!ret->async_rx && ret->req_size == req_size &&
 		    memcmp(ret->req, request, req_size) == 0)
 			return ret;
 	}

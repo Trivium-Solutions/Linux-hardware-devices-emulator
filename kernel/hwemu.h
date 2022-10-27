@@ -42,6 +42,9 @@ struct hwe_pair {
 	 * in range 0..HWE_MAX_PAIRS */
 	char filename[HWE_STRLEN(HWE_MAX_PAIRS) + 1];
 	struct kobj_attribute pair_file;
+	/* the following fields are used in asynchronous data exchange */
+	bool async_rx;
+	unsigned period;
 };
 
 /*! Returns the number of entries in a list */
