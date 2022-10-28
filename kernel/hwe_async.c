@@ -14,10 +14,10 @@
 
 #include "hwemu.h"
 
-#define PERIOD (5 * HZ)
+#define PERIOD (1 * HZ)
 
 #define DECL_TIMER_FUNC(__upper, __lower) \
-	extern void hwe_##__lower##_async_rx(struct hwe_dev * device, struct hwe_pair * pair);
+	extern void hwe_##__lower##_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair);
 
 /*! Declare timer functions for each device type. */
 HWE_FOREACH_IFACE(DECL_TIMER_FUNC)
@@ -25,7 +25,7 @@ HWE_FOREACH_IFACE(DECL_TIMER_FUNC)
 #undef DECL_TIMER_FUNC
 
 /*! Array of asynchronous reception handlers for each interface. */
-static void (* const async_rx[])(struct hwe_dev * device, struct hwe_pair * pair) = {
+static void (* const async_rx[])(struct hwe_dev_priv * device, struct hwe_pair * pair) = {
 #define FUNC_PTR(__upper, __lower) hwe_##__lower##_async_rx,
 	HWE_FOREACH_IFACE(FUNC_PTR)
 #undef FUNC_PTR
@@ -62,7 +62,7 @@ static void timer_func(struct timer_list *t)
 
 					//pr_debug("%s: async_rx, t=%lu\n", iface_to_str(ifc), jiff);
 
-					async_rx[ifc](dev, p);
+					async_rx[ifc](hwe_get_dev_priv(dev), p);
 				}
 			}
 

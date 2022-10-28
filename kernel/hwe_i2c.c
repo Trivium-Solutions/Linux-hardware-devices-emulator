@@ -398,7 +398,7 @@ void hwe_cleanup_i2c(void)
 	pr_info("i2c driver unloaded\n");
 }
 
-void hwe_i2c_async_rx(struct hwe_dev * device, struct hwe_pair * pair)
+void hwe_i2c_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
 
 }

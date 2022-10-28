@@ -53,6 +53,21 @@ struct hwe_dev {
 
 #define to_dev(p) container_of(p, struct hwe_dev, kobj)
 
+struct hwe_dev_priv * hwe_get_dev_priv(struct hwe_dev * dev)
+{
+	return dev->device;
+}
+
+enum HWE_IFACE hwe_get_dev_iface(struct hwe_dev * dev)
+{
+	return dev->iface;
+}
+
+long hwe_get_dev_index(struct hwe_dev * dev)
+{
+	return dev->index;
+}
+
 /*! \brief `sysfs` attribute of a device */
 struct dev_attribute {
 	struct attribute attr;

@@ -69,6 +69,9 @@ struct hwe_pair * find_pair(struct list_head * list, const unsigned char * reque
 struct hwe_pair * get_pair_at_index(struct list_head * list, size_t index);
 
 /* in hwe_sysfs.c */
+struct hwe_dev_priv * hwe_get_dev_priv(struct hwe_dev * dev);
+enum HWE_IFACE hwe_get_dev_iface(struct hwe_dev * dev);
+long hwe_get_dev_index(struct hwe_dev * dev);
 struct hwe_pair * find_response(struct hwe_dev * dev,
 	const unsigned char * request, int req_size);
 void lock_devs(struct hwe_dev * dev);

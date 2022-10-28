@@ -180,7 +180,7 @@ void hwe_cleanup_net(void)
 	pr_info("net driver unloaded\n");
 }
 
-void hwe_net_async_rx(struct hwe_dev * device, struct hwe_pair * pair)
+void hwe_net_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
 
 }
