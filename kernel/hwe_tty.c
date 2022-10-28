@@ -277,5 +277,8 @@ void hwe_cleanup_tty(void)
 
 void hwe_tty_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
+	struct tty_port * p = &ports[device->index];
 
+	tty_insert_flip_string_fixed_flag(p, pair->resp, TTY_NORMAL, pair->resp_size);
+	tty_flip_buffer_push(p);
 }

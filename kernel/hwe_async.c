@@ -58,9 +58,15 @@ static void timer_func(struct timer_list *t)
 				j = p->time ? p->time + p->period : jiff;
 
 				if (time_after_eq(jiff, j)) {
+#if 0
+					pr_debug("%s%ld: async_rx, t=%lu, pause=%lus, pair: %p\n",
+						iface_to_str(ifc),
+						hwe_get_dev_index(dev),
+						jiff,
+						p->time ? (jiff - p->time) / HZ : 0,
+						p);
+#endif
 					p->time = j;
-
-					//pr_debug("%s: async_rx, t=%lu\n", iface_to_str(ifc), jiff);
 
 					async_rx[ifc](hwe_get_dev_priv(dev), p);
 				}
@@ -81,7 +87,7 @@ extern int hwe_init_async(void)
 	int err = 0;
 
 	pr_debug("initializing async\n");
-	pr_debug(" HZ == %d\n", HZ);
+//	pr_debug(" HZ == %d\n", HZ);
 
 	timer_setup(&timer, timer_func, 0);
 	timer.expires = jiffies + PERIOD;
