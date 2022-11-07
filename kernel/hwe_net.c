@@ -182,5 +182,5 @@ void hwe_cleanup_net(void)
 
 void hwe_net_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
-
+	send_response(device->net_dev, pair->resp, pair->resp_size);
 }
