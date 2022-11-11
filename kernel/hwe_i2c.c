@@ -36,6 +36,7 @@ struct hwe_dev_priv {
 	size_t resp_size;
 	struct hwe_chip chip;
 	struct list_head devices;
+	bool async;
 };
 
 #define to_priv(adap) container_of(adap, struct hwe_dev_priv, adapter)
@@ -80,7 +81,7 @@ static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int 
 
 			pair = find_response(dev->hwedev, m->buf, m->len);
 
-			if (dev->resp_size)
+			if (dev->resp_size && !dev->async)
 				dev_err_ratelimited(&adap->dev, "new request arrived "
 					"while previous one is pending; "
 					"possible data loss\n");
@@ -89,6 +90,7 @@ static int do_master_xfer(struct i2c_adapter * adap, struct i2c_msg * msgs, int 
 				memcpy(dev->resp, pair->resp, pair->resp_size);
 				dev->resp_size = pair->resp_size;
 				dev->resp_ptr = dev->resp;
+				dev->async = false;
 			}
 			else
 				dev->resp_size = 0;
@@ -400,5 +402,22 @@ void hwe_cleanup_i2c(void)
 
 void hwe_i2c_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
+	if (!device->in_use)
+		return;
 
+	memcpy(device->chip.dat, pair->resp,
+		pair->resp_size < I2C_CHIP_SIZE ?
+		pair->resp_size : I2C_CHIP_SIZE);
+
+	if (device->resp_size && (!device->async || device->resp_ptr != device->resp))
+		/* XXX overwrite asynchronous response IFF
+		 * 1) there is no pending response OR
+		 * 2) the pending response is asynchronous AND
+		 * 3) we haven't started reading it yet. */
+		return;
+
+	memcpy(device->resp, pair->resp, pair->resp_size);
+	device->resp_size = pair->resp_size;
+	device->resp_ptr = device->resp;
+	device->async = true;
 }
