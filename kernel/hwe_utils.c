@@ -54,59 +54,74 @@ static inline int is_hex_str(const char * str, size_t size)
 	return 1;
 }
 
-/*! Parses a time representation in the format 1h2m3s and returns time
- * in seconds. On error, 0 is returned.
+/*! Parses a time representation in the format 1h2m3s4ms and returns time
+ * in milliseconds. On error, 0 is returned.
  */
 static inline unsigned hwe_str_to_time(const char * str, const char ** end_ptr)
 {
 	static const struct pattern_struct {
-		char ch;
-		unsigned long max;
-		unsigned long mult;
+		const char * unit;
+		int unit_len;
+		unsigned max;
+		unsigned mult;
 	}
 	pattern[] = {
-		{ .ch = 'h', .max = ULONG_MAX, .mult = 60*60 },
-		{ .ch = 'm', .max = 59, .mult = 60 },
-		{ .ch = 's', .max = 59, .mult = 1 },
-		{ .ch = 0, },
+#define P(__u, __max, __mult) \
+	{ .unit = __u, .unit_len = sizeof(__u) - 1, .max = __max, .mult = __mult }
+		/* XXX you can pass as many hours as you wish, but the
+		 * return value will be checked for overflows */
+		P("h",	INT_MAX,	60*60*1000),
+		P("m",	59,		60*1000),
+		P("s",	59,		1*1000),
+		P("ms",	999,		1),
+		P(0,	0,		0),
+#undef P
 	};
 	const struct pattern_struct * p = 0;
 	const char * s = str;
-	unsigned long ret = 0;
+	unsigned long long ret = 0;
+	unsigned long long n;
 	char *ep;
-	unsigned long n;
 
 	do {
-		n = simple_strtoul(s, &ep, 10);
-		if (p) {
-			if (p->ch != *ep) {
-				/* error: invalid time unit */
-				ret = 0;
-				break;
-			}
-		}
-		else {
-			for (p = pattern; p->ch; p++)
-				if (p->ch == *ep)
-					break;
-			if (!p->ch)
-				/* error: invalid time unit */
-				break;
+		n = simple_strtoull(s, &ep, 10);
+
+		if (s == ep) {
+			/* error: no time value */
+			ret = 0;
+			break;
 		}
 
-		if (n > p->max) {
-			/* error: invalid time value */
+		if (!p)
+			p = pattern;
+
+		for (; p->unit; p++)
+			if (strncmp(p->unit, ep, p->unit_len) == 0 &&
+			    !isalpha((unsigned char)ep[p->unit_len]))
+				break;
+
+		if (!p->unit || n > p->max) {
+			/* error: invalid time unit/value */
 			ret = 0;
 			ep = (char *)s;
 			break;
 		}
 
-		s = ++ep;
 		ret += n * p->mult;
+
+		if (ret > UINT_MAX) {
+			/* error: overflow */
+			ret = 0;
+			ep = (char *)str;
+			break;
+		}
+
+		ep += p->unit_len;
+		s = ep;
 		p++;
 #define IS_SEP(c) ((c) == 0 || (c) == ',' || (c) == '=')
 	}
-	while (p->ch && !IS_SEP(*s));
+	while (p->unit && !IS_SEP(*s));
 
 	if (!IS_SEP(*s))
 		/* error: invalid separator */
@@ -118,23 +133,29 @@ static inline unsigned hwe_str_to_time(const char * str, const char ** end_ptr)
 	return ret;
 }
 
-/*! Returns a HMS representation of time.
+/*! Returns a 1h2m3s4ms representation of time.
  */
 static inline char * hwe_time_to_str(char * str, size_t size, unsigned t)
 {
-	int n, h, m, s;
+	int n = 0, h, m, s, ms;
 
+	ms = t % 1000;
+	t /= 1000;
 	h = t / 3600;
 	m = (t - 3600 * h) / 60;
 	s = t - 3600 * h - m * 60;
 
 	if (h)
-		n = scnprintf(str, size, "%uh%dm%ds", h, m, s);
-	else
-	if (m)
-		n = scnprintf(str, size, "%dm%ds", m, s);
-	else
-		n = scnprintf(str, size, "%ds", s);
+		n = scnprintf(str, size, "%uh", h);
+
+	if (m || (h && (s || ms)))
+		n += scnprintf(str + n, size - n, "%um", m);
+
+	if (s || ((h || m) && ms))
+		n += scnprintf(str + n, size - n, "%us", s);
+
+	if (ms)
+		n += scnprintf(str + n, size - n, "%ums", ms);
 
 	return str + n;
 }
@@ -174,15 +195,21 @@ const char * str_to_pair(const char * str, size_t str_size, struct hwe_pair * pa
 		pair->async_rx = false;
 	}
 	else {
-		/* XXX only a time value for now */
-		unsigned t = hwe_str_to_time(s, 0);
+		unsigned t;
+		const char * e;
 
-		if (!t)
+		if (strncmp(s, "timer:", 6) == 0)
+			s += 6;
+
+		t = hwe_str_to_time(s, &e);
+
+		if (!t || *e != '=')
 			return "invalid data definition";
 
 		pair->req_size = 0;
 		pair->async_rx = true;
-		pair->period = msecs_to_jiffies(t * 1000);
+		pair->period_ms = t;
+		pair->period = msecs_to_jiffies(t);
 		pair->time = 0;
 	}
 
@@ -228,8 +255,10 @@ const char * pair_to_str(struct hwe_pair * pair)
 		return "error: response size out of valid range";
 
 	if (pair->async_rx) {
-		/* XXX only a time value for now */
-		p = hwe_time_to_str(p, sizeof(buf), jiffies_to_msecs(pair->period) / 1000);
+		const size_t n = sizeof("timer:") - 1;
+
+		strcpy(p, "timer:");
+		p = hwe_time_to_str(p + n, sizeof(buf) - n, pair->period_ms);
 	}
 	else
 		p = bin2hex(p, pair->req, pair->req_size);

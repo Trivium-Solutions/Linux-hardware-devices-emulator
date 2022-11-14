@@ -24,6 +24,7 @@
 #define likely
 #define unlikely
 #define simple_strtoul strtoul
+#define simple_strtoull strtoull
 #define jiffies_to_msecs
 #define msecs_to_jiffies
 

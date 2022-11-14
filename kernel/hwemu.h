@@ -44,6 +44,7 @@ struct hwe_pair {
 	struct kobj_attribute pair_file;
 	/* the following fields are used in asynchronous data exchange */
 	bool async_rx;
+	unsigned long period_ms;
 	unsigned long period;
 	unsigned long time;
 };

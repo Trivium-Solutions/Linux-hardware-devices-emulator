@@ -14,7 +14,7 @@
 
 #include "hwemu.h"
 
-#define PERIOD (1 * HZ)
+#define PERIOD 1
 
 #define DECL_TIMER_FUNC(__upper, __lower) \
 	extern void hwe_##__lower##_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair);
