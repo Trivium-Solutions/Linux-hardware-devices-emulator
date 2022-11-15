@@ -12,6 +12,7 @@ import os
 import sys
 import random
 import subprocess
+import re
 
 IF_I2C = 'i2c'
 IF_TTY = 'tty'
@@ -63,6 +64,31 @@ def is_hex_str(s):
 
 def bytes_to_hex_str(b):
     return ''.join('%02x' % x for x in b)
+
+# ----------------------------------------------------------------------
+
+def check_async_key(string):
+    match = re.fullmatch(r'timer:(\d+h)?(\d+m)?(\d+s)?(\d+ms)?', string)
+    if not match:
+        return False, 'Invalid key: "%s"' % (string)
+    g = match.groups()
+    h = g[0] and int(g[0][:-1]) or 0
+    if h > 1193:
+        return False, 'Invalid hour in key "%s"' % (string)
+    m = g[1] and int(g[1][:-1]) or 0
+    if m > 59:
+        return False, 'Invalid minute in key "%s"' % (string)
+    s = g[2] and int(g[2][:-1]) or 0
+    if s > 59:
+        return False, 'Invalid second in key "%s"' % (string)
+    ms = g[3] and int(g[3][:-2]) or 0
+    if ms > 999:
+        return False, 'Invalid millisecond in key "%s"' % (string)
+    t = h * 60*60*1000 + m * 60*1000 + s * 1000 + ms
+    if t == 0 or t > 0xffffffff:
+        return False, 'Invalid time in key "%s"' % (string)
+
+    return True, None
 
 # ----------------------------------------------------------------------
 

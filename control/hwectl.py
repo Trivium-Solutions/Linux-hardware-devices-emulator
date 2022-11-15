@@ -119,7 +119,7 @@ def load_from_ini(filename):
             return s
         return config.bytes_to_hex_str(bytes(s[1: -1], encoding = 'utf8'))
 
-    ini = configparser.ConfigParser()
+    ini = configparser.ConfigParser(delimiters = ('='))
     lst = ini.read(filename)
 
     if len(lst) == 0:
@@ -151,18 +151,21 @@ def load_from_ini(filename):
             k2 = convert_quoted(k)
             v2 = convert_quoted(v)
 
-            if not config.is_hex_str(k2):
-                error('Invalid character in request: %s' % (k))
+            if config.is_hex_str(k2):
+                if len(k2) > config.HWE_MAX_REQUEST * 2:
+                    error('Request string too long: %s' % (k))
 
-            if len(k2) > config.HWE_MAX_REQUEST * 2:
-                error('Request string too long: %s' % (k))
+                if (len(k2) & 1) != 0:
+                    error('Odd number of characters in request string: %s' % (k))
 
-            if (len(k2) & 1) != 0:
-                error('Odd number of characters in request string: %s' % (k))
+                if is_quoted(k) and k2 in ini[dev_name].keys():
+                    # error: quoted string has an equal byte representation
+                    error('Duplicate key: %s' % (k))
+            else:
+                ok, err = config.check_async_key(k2)
 
-            if is_quoted(k) and k2 in ini[dev_name].keys():
-                # error: quoted string has an equal byte representation
-                error('Duplicate key: %s' % (k))
+                if not ok:
+                    error(err)
 
             if len(v2) < 1:
                 error('Empty response string for request: %s' % (k))
