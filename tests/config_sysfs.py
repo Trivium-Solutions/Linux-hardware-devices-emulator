@@ -92,6 +92,14 @@ def check_async_key(string):
 
 # ----------------------------------------------------------------------
 
+def is_async_pair(pair):
+    p = pair.split('=')
+    if len(p) != 2:
+        return False # can't happen?
+    return check_async_key(p[0])[0]
+
+# ----------------------------------------------------------------------
+
 def rand_hex_str(max):
     return bytes_to_hex_str(bytes(random.randint(0, 255) for i in rand_range(1, max)))
 

@@ -79,6 +79,10 @@ def main():
         if iface_name != config.IF_SPI:
             return
 
+        if config.is_async_pair(pair):
+            # not supporting asynchronous data here
+            return
+
         d = cfg[iface_name][dev_name].get('_extern_dev_name')
         lnk = '/dev/' + d
 
