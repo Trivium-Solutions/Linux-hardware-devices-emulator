@@ -41,7 +41,8 @@ static void timer_func(struct timer_list *t)
 	for (ifc = 0; ifc < HWE_IFACE_COUNT; ifc++) {
 		struct hwe_dev * dev;
 
-		lock_iface_devs(ifc);
+		if (!try_lock_iface_devs(ifc))
+			continue;
 
 		dev = find_first_device(ifc);
 
@@ -102,7 +103,7 @@ extern void hwe_cleanup_async(void)
 {
 	pr_debug("deinitializing async\n");
 
-	del_timer(&timer);
+	del_timer_sync(&timer);
 
 	pr_debug("async is closed\n");
 }

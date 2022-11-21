@@ -79,6 +79,7 @@ void lock_devs(struct hwe_dev * dev);
 void unlock_devs(struct hwe_dev * dev);
 void lock_iface_devs(enum HWE_IFACE iface);
 void unlock_iface_devs(enum HWE_IFACE iface);
+bool try_lock_iface_devs(enum HWE_IFACE iface);
 struct hwe_dev * find_first_device(enum HWE_IFACE iface);
 struct hwe_dev * find_next_device(enum HWE_IFACE iface, struct hwe_dev * device);
 struct list_head * get_pair_list(struct hwe_dev * dev);

@@ -11,6 +11,7 @@
 #include <linux/ctype.h>
 #include <linux/version.h>
 #include <linux/bitmap.h>
+#include <linux/semaphore.h>
 
 #include "hwemu.h"
 
@@ -22,7 +23,7 @@
 struct hwe_iface {
 	struct kobject kobj;
 	struct list_head dev_list;
-	struct mutex dev_mutex;
+	struct semaphore sem;
 	DECLARE_BITMAP(dev_indexes, HWE_MAX_DEVICES);
 };
 
@@ -177,12 +178,17 @@ static inline void put_dev_index(enum HWE_IFACE iface, long index)
 
 void lock_iface_devs(enum HWE_IFACE iface)
 {
-	mutex_lock(&ifaces[iface].dev_mutex);
+	down(&ifaces[iface].sem);
+}
+
+bool try_lock_iface_devs(enum HWE_IFACE iface)
+{
+	return down_trylock(&ifaces[iface].sem) == 0;
 }
 
 void unlock_iface_devs(enum HWE_IFACE iface)
 {
-	mutex_unlock(&ifaces[iface].dev_mutex);
+	up(&ifaces[iface].sem);
 }
 
 void lock_devs(struct hwe_dev * dev)
@@ -973,7 +979,7 @@ static int init_iface(enum HWE_IFACE iface)
 
 	bitmap_zero(ifc->dev_indexes, HWE_MAX_DEVICES);
 
-	mutex_init(&ifc->dev_mutex);
+	sema_init(&ifc->sem, 1);
 
 	err = kobject_init_and_add(&ifc->kobj, &iface_ktype,
 		&base_kset->kobj, iface_to_str(iface));
