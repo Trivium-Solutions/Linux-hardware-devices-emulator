@@ -35,6 +35,7 @@ struct hwe_dev_priv {
 	u8 resp[HWE_MAX_RESPONSE];
 	u8 * resp_ptr;
 	size_t resp_size;
+	bool async;
 };
 
 static struct list_head devices;
@@ -65,6 +66,7 @@ static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *s
 
 		dev_dbg_ratelimited(&ctlr->dev, "attempt to read %d byte(s)\n",
 			transfer->len);
+		memset(transfer->rx_buf, 0, transfer->len);
 	}
 	else
 	if (transfer->rx_buf && !transfer->tx_buf) {
@@ -82,9 +84,13 @@ static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *s
 			dev->resp_ptr += sz;
 
 			hwe_log_response(HWE_SPI, dev->index, transfer->rx_buf, transfer->len);
+
+			if (sz < transfer->len)
+				memset(transfer->rx_buf + sz, 0, transfer->len - sz);
 		}
 		else {
 			dev_dbg_ratelimited(&ctlr->dev, "attempt to read %d byte(s)\n", transfer->len);
+			memset(transfer->rx_buf, 0, transfer->len);
 		}
 
 	}
@@ -96,6 +102,7 @@ static int hwespi_transfer_one(struct spi_controller *ctlr, struct spi_device *s
 			memcpy(dev->resp, pair->resp, pair->resp_size);
 			dev->resp_size = pair->resp_size;
 			dev->resp_ptr = dev->resp;
+			dev->async = false;
 		}
 		else
 			dev->resp_size = 0;
@@ -264,5 +271,15 @@ void hwe_cleanup_spi(void)
 
 void hwe_spi_async_rx(struct hwe_dev_priv * device, struct hwe_pair * pair)
 {
+	if (device->resp_size && (!device->async || device->resp_ptr != device->resp))
+		/* XXX overwrite asynchronous response IFF
+		 * 1) there is no pending response OR
+		 * 2) the pending response is asynchronous AND
+		 * 3) we haven't started reading it yet. */
+		return;
 
+	memcpy(device->resp, pair->resp, pair->resp_size);
+	device->resp_size = pair->resp_size;
+	device->resp_ptr = device->resp;
+	device->async = true;
 }
