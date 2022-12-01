@@ -5,13 +5,22 @@ HWECTL=$(realpath "$(dirname "$0")/../control/hwectl")
 
 EXITCODE=1
 
-if [ -z "$1" ] ; then
-    echo "You must specify a config file name as a parameter"
+if [ \( "$#" != 1 -a "$#" != 3 \) -o \( "$#" = 3 -a "$1" != "--async" \) ] ; then
+    cat << __EOF__
+Usage:
+    $(basename $0) <config_file>
+    OR:
+    $(basename $0) --async <wait_time_s> <config_file>
+__EOF__
 elif [ "$(id -u)" != "0" ] ; then
     sudo "$0" $*
     EXITCODE=$?
-elif "$HWECTL" start "$1" ; then
-    python3 "$BASE_DIR"/spi_test.py $*
+elif [ "$1" = "--async" ] && "$HWECTL" start "$3" || "$HWECTL" start "$1" ; then
+    if [ "$1" = "--async" ] ; then
+        python3 "$BASE_DIR"/spi_test.py --async "$2" "$3"
+    else
+        python3 "$BASE_DIR"/spi_test.py "$1"
+    fi
     EXITCODE=$?
     "$HWECTL" stop
 fi
