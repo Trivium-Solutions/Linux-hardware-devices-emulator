@@ -87,6 +87,10 @@ def zero_bytes(b):
 
 # ----------------------------------------------------------------------
 
+# Asynchronous data can be of variable length, and we cannot know in
+# advance how much data we should read each time. So we find the
+# maximum size of asynchronous data in our configuration and read just
+# this amount.
 max_data_len = 0
 wait_time = 0
 
@@ -103,6 +107,9 @@ class ReaderThread(threading.Thread):
             t = time.time()
             end_time = t + wait_time
             while t < end_time:
+                # We always read max_data_len bytes. If the actual data
+                # size is less than that, we will read excessive bytes
+                # as zeroes.
                 lst = spi.transaction(reading(max_data_len))
                 data = len(lst) > 0 and lst[0] or None
                 if not data is None and not zero_bytes(data):
