@@ -1,9 +1,10 @@
 # Linux hardware devices emulator
 
 Linux Emulator of arbitrary hardware devices. This software can be used to
-emulate hardware devices for testing purposes. Currently, it supports simple
-request/respose communication (request initiated from userspace, kernel module
-returns a response according to configuration).
+emulate hardware devices for testing purposes. It support a request/respose
+type of communication (request initiated from userspace, kernel module
+returns a response according to configuration) as well as unilateral
+transfers from emulated devices to userspace.
 
 
 This software consists of two major components: a Linux kernel module
@@ -12,7 +13,8 @@ devices, which act as real hardware devices capable of exchanging data
 with a user-space application. The data exchange is done in the form of
 request-response, where the user-space application sends packets of data
 to the emulated device and receives packets of data in reply, according
-to configuration.
+to configuration. The emulator can also be instructed to periodically
+send data packets from the emulated device to the user-space application.
 
 Currently, the kernel module aims to emulate the following types of
 devices:
@@ -86,7 +88,7 @@ section names specify the device names that will be created in `/dev`
 instructs the emulator to create the device `/dev/ttyUSB0` (if such a
 device doesn't already exist).
 
-The section names must match certain patterns:
+The section names must match the following patterns:
 
 - `ttyUSB*` for TTY devices;
 - `i2c-*` for I2C devices;
@@ -95,11 +97,13 @@ The section names must match certain patterns:
 
 Any other names are considered invalid.
 
-The key-value pairs of the sections represent request and response
-data. Each byte of the data is represented as a string value of the
-form `xx`, where `x` is a hexadecimal number, e.g. `1A`. All the data
-bytes are represented as a consecutive string of such values, e.g.
-`1A2B3C`.
+### Request/response transfer configuration
+
+In the request/response type of transfer, the key-value pairs of the
+sections represent request and response data. Each byte of the data is
+represented as a string value of the form `xx`, where `x` is a
+hexadecimal number, e.g. `1A`. All the data bytes are represented as a
+consecutive string of such values, e.g. `1A2B3C`.
 
 Thus, if a request has the bytes `00` `01` `03` `04` and the response
 is `AA` `BB` `CC`, you should add the following key-value pair to the
@@ -122,4 +126,48 @@ request-response pair may look like this:
 "r80000000"="r80000000=12345678"
 ```
 
+### Unilateral transfer configuration
+
+The emulated device can be configured to periodically send data packets
+to userspace. In this case, the key-part of the key-value pair specifies
+the period with which the packet is to be transferred. The value-part
+describes the packet data, much as in the request/response type of
+transfer.
+
+In this case, the key-value pair has the following syntax:
+
+`timer:`[*hh*`h`[*mm*`m`[*ss*`s`[*ms*`ms`]]]]`=`*data_bytes*
+
+where:
+
+- elements in square brackets are optional;
+- *hh*, *mm*, *ss*, and *ms* are the values for hours, minutes, seconds
+  and milliseconds respectively; each of these elements is optional but
+  at least one element must be present;
+- *data_bytes* is the description of the data bytes; it has the same
+  format as in the request/response type of transfer.
+
+For example, the following record in a configuration file tells the
+emulated device `/dev/ttyUSB0` to "receive" data bytes `AA` `BB` `CC`
+every 1 minute 35 seconds and 256 milliseconds.
+
+```
+[ttyUSB0]
+timer:1m35s256ms=AABBCC
+```
+
+### Example
+
 A simple example configuration is in the file [tests/test.ini](/tests/test.ini).
+
+## Limitations
+
+The emulator has certain limitations.
+
+- Although you can specify a period for data reception with precision of
+  up to one millisecond, in reality this period cannot be less than a
+  [jiffy](https://man7.org/linux/man-pages/man7/time.7.html); this
+  restriction is imposed by hardware.
+- In configuration files, every key-part of the key-value pair must be
+  unique within the section; this is a requirement of the INI file
+  syntax.
